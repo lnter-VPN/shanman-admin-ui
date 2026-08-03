@@ -22,7 +22,7 @@ function loading(){content.innerHTML='<div class="loading">正在加载…</div>
 async function api(path,options={}){
  if(!state.apiBase)throw new Error('后台 API 尚未配置。GitHub Pages 只负责显示界面，请先填写 HTTPS 后台地址。');
  const headers={...(options.body instanceof FormData?{}:{'content-type':'application/json'}),...(state.token?{authorization:`Bearer ${state.token}`}:{}) ,...(options.headers||{})};
- const response=await fetch(`${state.apiBase}${path}`,{...options,headers});
+ const response=await fetch(`${state.apiBase}${path}`,{cache:'no-store',...options,headers});
  const text=await response.text();let data={};try{data=text?JSON.parse(text):{}}catch{data={error:text}}
  if(response.status===401&&state.token){logout();throw new Error('登录已过期，请重新登录')}
  if(!response.ok)throw new Error(data.error||`请求失败（${response.status}）`);
@@ -72,12 +72,24 @@ async function renderProducts(type){
  <section class="panel product-panel"><div class="panel-head"><div><h2>${label}列表</h2><p>状态与客户可见性已明确标注，删除项单独归档</p></div><div class="catalog-total"><strong>${data.items.length}</strong><small>全部${label}</small></div></div>${productSummary(counts)}${productFilters(type,filter,counts)}${productTable(visible,type)}</section>`;
 }
 function countStatuses(items){return items.reduce((result,item)=>{result[item.status]=(result[item.status]||0)+1;return result},{draft:0,published:0,unpublished:0,deleted:0})}
-function productSummary(counts){return `<div class="product-summary"><div class="published"><i></i><span><strong>${counts.published}</strong><small>已上架 · 客户可见</small></span></div><div class="draft"><i></i><span><strong>${counts.draft}</strong><small>草稿 · 仅后台</small></span></div><div class="unpublished"><i></i><span><strong>${counts.unpublished}</strong><small>已下架 · 已隐藏</small></span></div><div class="deleted"><i></i><span><strong>${counts.deleted}</strong><small>已删除 · 已归档</small></span></div></div>`}
+function productSummary(counts){return `<div class="product-summary"><div class="published"><i></i><span><strong>${counts.published}</strong><small>已上架 · 客户可见</small></span></div><div class="draft"><i></i><span><strong>${counts.draft}</strong><small>草稿 · 仅后台</small></span></div><div class="unpublished"><i></i><span><strong>${counts.unpublished}</strong><small>已下架 · 已隐藏</small></span></div><div class="deleted"><i></i><span><strong>${counts.deleted}</strong><small>回收站 · 可永久删除</small></span></div></div>`}
 function productFilters(type,current,counts){return `<div class="product-filters"><button class="${current==='active'?'active':''}" data-action="filter-products" data-type="${type}" data-filter="active">管理中 <b>${counts.published+counts.draft+counts.unpublished}</b></button>${['published','draft','unpublished','deleted'].map((key)=>`<button class="${current===key?'active':''}" data-action="filter-products" data-type="${type}" data-filter="${key}">${statusLabels[key]} <b>${counts[key]}</b></button>`).join('')}</div>`}
 function avatarUrl(value){const raw=String(value||'').trim();if(!raw)return '';if(/^https?:\/\//i.test(raw)||raw.startsWith('data:')||raw.startsWith('blob:'))return raw;return `${state.apiBase}${raw.startsWith('/')?'':'/'}${raw}`}
 function productTable(items,type){
  if(!items.length)return empty('当前状态下暂无内容');
- return `<div class="table-wrap product-table"><table><thead><tr><th>名称</th><th>标识</th><th>${type==='agents'?'分类 / 技能':'类型'}</th><th>版本</th><th>发布状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${items.map((item)=>{const latest=item.latestVersion||item.latest_version;const updated=item.updatedAt||item.updated_at;const editAction=type==='agents'?'edit-agent':'edit-product';const deleted=item.status==='deleted';const image=type==='agents'?avatarUrl(item.avatar):'';return `<tr class="state-${esc(item.status)}"><td><div class="product-identity">${type==='agents'?`<span class="product-avatar">${image?`<img src="${esc(image)}" alt="">`:'AI'}</span>`:`<span class="skill-mark">S</span>`}<span><strong>${esc(item.name)}</strong><small>${esc(item.summary||'无摘要')}</small></span></div></td><td class="mono">${esc(item.slug)}</td><td>${type==='agents'?`<span class="category-pill">${esc(item.category||'通用')}</span><br><span class="subtle">${(item.skills||[]).length} 个技能</span>`:'技能包'}</td><td><b class="version-tag">v${esc(latest?.version||'—')}</b></td><td>${statusBlock(item.status)}</td><td>${date(updated)}</td><td>${deleted?'<span class="archived-label">已归档，不可操作</span>':`<div class="actions"><button class="table-action" data-action="${editAction}" data-type="${type}" data-id="${item.id}"${type==='skills'?` data-name="${esc(item.name)}" data-summary="${esc(item.summary||'')}" data-description="${esc(item.description||'')}"`:''}>编辑</button>${type==='agents'?`<button class="table-action" data-action="clone-agent" data-id="${item.id}">复制</button>`:''}${item.status==='published'?`<button class="table-action amber" data-action="unpublish" data-type="${type}" data-id="${item.id}">下架</button>`:`<button class="table-action green" data-action="publish" data-type="${type}" data-id="${item.id}">上架</button>`}<button class="table-action warn" data-action="delete-product" data-type="${type}" data-id="${item.id}">删除</button></div>`}</td></tr>`}).join('')}</tbody></table></div>`;
+ return `<div class="table-wrap product-table"><table><thead><tr><th>名称</th><th>标识</th><th>${type==='agents'?'分类 / 技能':'类型'}</th><th>版本</th><th>发布状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${items.map((item)=>{const latest=item.latestVersion||item.latest_version;const updated=item.updatedAt||item.updated_at;const editAction=type==='agents'?'edit-agent':'edit-product';const deleted=item.status==='deleted';const image=type==='agents'?avatarUrl(item.avatar):'';const identity=`data-type="${type}" data-id="${item.id}" data-name="${esc(item.name)}"`;return `<tr class="state-${esc(item.status)}"><td><div class="product-identity">${type==='agents'?`<span class="product-avatar">${image?`<img src="${esc(image)}" alt="">`:'AI'}</span>`:`<span class="skill-mark">S</span>`}<span><strong>${esc(item.name)}</strong><small>${esc(item.summary||'无摘要')}</small></span></div></td><td class="mono">${esc(item.slug)}</td><td>${type==='agents'?`<span class="category-pill">${esc(item.category||'通用')}</span><br><span class="subtle">${(item.skills||[]).length} 个技能</span>`:'技能包'}</td><td><b class="version-tag">v${esc(latest?.version||'—')}</b></td><td>${statusBlock(item.status)}</td><td>${date(updated)}</td><td>${deleted?`<div class="actions archived-actions"><span class="archived-label">已进入回收站</span><button class="table-action danger" data-action="permanent-delete" ${identity}>永久删除</button></div>`:`<div class="actions"><button class="table-action" data-action="${editAction}" ${identity}${type==='skills'?` data-summary="${esc(item.summary||'')}" data-description="${esc(item.description||'')}"`:''}>编辑</button>${type==='agents'?`<button class="table-action" data-action="clone-agent" data-id="${item.id}">复制</button>`:''}${item.status==='published'?`<button class="table-action amber" data-action="unpublish" ${identity}>下架</button>`:`<button class="table-action green" data-action="publish" ${identity}>上架</button>`}<button class="table-action warn" data-action="delete-product" ${identity}>移入回收站</button></div>`}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+async function verifyProductState(type,id,expected){
+ const [admin,market]=await Promise.all([api(`/api/admin/${type}/${id}`),api(`/api/marketplace/${type}`)]);
+ if(admin.status!==expected)throw new Error(`服务器状态校验失败：期望 ${statusLabels[expected]||expected}，实际 ${statusLabels[admin.status]||admin.status}`);
+ const visible=(market.items||[]).some((item)=>item.id===id);
+ if(visible!==(expected==='published'))throw new Error(expected==='published'?'服务器已上架，但客户端市场尚未显示':'服务器状态已修改，但客户端市场仍可见');
+ return admin;
+}
+async function verifyProductGone(type,id){
+ const [admin,market]=await Promise.all([api(`/api/admin/${type}`),api(`/api/marketplace/${type}`)]);
+ if((admin.items||[]).some((item)=>item.id===id)||(market.items||[]).some((item)=>item.id===id))throw new Error('永久删除校验失败，服务器仍返回该资源');
 }
 
 async function renderUsers(){
@@ -218,8 +230,22 @@ document.addEventListener('click',async(event)=>{
  }
  if(action==='copy-license'){const value=button.closest('.license-key-box')?.querySelector('textarea')?.value||'';try{await navigator.clipboard.writeText(value);notice('已复制授权 Key')}catch{notice('复制失败，请手动复制',true)}return}
  try{
-  if(action==='publish'||action==='unpublish'){await api(`/api/admin/${button.dataset.type}/${button.dataset.id}/${action}`,{method:'POST'});notice(action==='publish'?'已上架':'已下架');await navigate(button.dataset.type)}
-  if(action==='delete-product'&&confirm('确定删除？该操作会软删除资源并从客户市场隐藏。')){await api(`/api/admin/${button.dataset.type}/${button.dataset.id}`,{method:'DELETE'});notice('已删除');await navigate(button.dataset.type)}
+  if(action==='publish'||action==='unpublish'){
+   const type=button.dataset.type;const id=button.dataset.id;const expected=action==='publish'?'published':'unpublished';
+   if(action==='unpublish'&&!confirm(`确定下架“${button.dataset.name||'该资源'}”？下架后客户端市场会立即隐藏。`))return;
+   const original=button.textContent;button.disabled=true;button.textContent='处理中…';
+   try{const result=await api(`/api/admin/${type}/${id}/${action}`,{method:'POST'});await verifyProductState(type,id,expected);state.productFilters[type]=expected;const affected=Number(result.affectedAgents?.length||0);notice(action==='publish'?'已真实上架，客户端市场已确认可见':`已真实下架，客户端市场已确认隐藏${affected?`；同时下架 ${affected} 个依赖该技能的智能体`:''}`);await navigate(type)}finally{button.disabled=false;button.textContent=original}return;
+  }
+  if(action==='delete-product'){
+   if(!confirm(`确定将“${button.dataset.name||'该资源'}”移入回收站？它会立即从客户端市场隐藏，之后仍可执行永久删除。`))return;
+   const type=button.dataset.type;const id=button.dataset.id;const original=button.textContent;button.disabled=true;button.textContent='处理中…';
+   try{const result=await api(`/api/admin/${type}/${id}`,{method:'DELETE'});await verifyProductState(type,id,'deleted');state.productFilters[type]='deleted';const affected=Number(result.affectedAgents?.length||0);notice(`已移入回收站并确认客户端不可见${affected?`；同时下架 ${affected} 个依赖该技能的智能体`:''}`);await navigate(type)}finally{button.disabled=false;button.textContent=original}return;
+  }
+  if(action==='permanent-delete'){
+   if(!confirm(`永久删除“${button.dataset.name||'该资源'}”？数据库记录、全部版本和上传文件将被清除，且无法恢复。`))return;
+   const type=button.dataset.type;const id=button.dataset.id;const original=button.textContent;button.disabled=true;button.textContent='永久删除中…';
+   try{const result=await api(`/api/admin/${type}/${id}/permanent`,{method:'DELETE'});await verifyProductGone(type,id);state.productFilters[type]='deleted';notice(`已永久删除${result.removedVersions?`，同时清理 ${result.removedVersions} 个版本`:''}${result.cleanupWarnings?'；部分历史文件清理失败，请检查服务器日志':''}`,Boolean(result.cleanupWarnings));await navigate(type)}finally{button.disabled=false;button.textContent=original}return;
+  }
   if(action==='revoke-license'&&confirm('确定吊销这条授权？已激活设备后续将无法再次验证。')){await api(`/api/admin/licenses/${button.dataset.id}/revoke`,{method:'POST'});notice('授权已吊销');await navigate('users')}
  }catch(error){notice(error.message,true)}
 });
