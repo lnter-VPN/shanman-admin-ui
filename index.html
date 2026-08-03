@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>闪漫 AI 管理后台</title>
+  <link rel="stylesheet" href="./admin.css">
+</head>
+<body>
+  <section id="loginView" class="login-shell">
+    <form id="loginForm" class="login-card">
+      <div class="brand-mark">闪</div>
+      <p class="eyebrow">SHANMAN CONTROL</p>
+      <h1>管理员登录</h1>
+      <p class="muted">管理智能体、技能、用户授权与匿名使用统计</p>
+      <label>账号或邮箱<input name="identifier" autocomplete="username" required></label>
+      <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+      <label id="apiBaseField" hidden>后台 API 地址<input id="apiBaseInput" name="apiBase" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com"></label>
+      <p id="hostingHint" class="hosting-hint" hidden></p>
+      <button class="primary wide" type="submit">登录后台</button>
+      <p id="loginError" class="error" role="alert"></p>
+    </form>
+  </section>
+
+  <div id="appView" class="app-shell" hidden>
+    <aside class="sidebar">
+      <div class="brand"><span>闪</span><div><strong>闪漫 AI</strong><small>单管理员后台</small></div></div>
+      <nav id="navigation">
+        <button data-page="dashboard" class="active">概览</button>
+        <button data-page="agents">智能体</button>
+        <button data-page="skills">技能</button>
+        <button data-page="users">用户与授权</button>
+        <button data-page="audit">操作与统计</button>
+      </nav>
+      <div class="sidebar-bottom"><span id="adminIdentity"></span><button id="logoutButton" class="ghost">退出登录</button></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><button id="menuButton" class="menu-button" aria-label="展开菜单">☰</button><div><p id="pageEyebrow" class="eyebrow">OVERVIEW</p><h1 id="pageTitle">平台概览</h1></div><button id="refreshButton" class="secondary">刷新</button></header>
+      <div id="notice" class="notice" hidden></div>
+      <section id="content" class="content" aria-live="polite"></section>
+    </main>
+  </div>
+  <div id="dialogRoot"></div>
+  <script src="./config.js"></script>
+  <script src="./admin.js" defer></script>
+</body>
+</html>
