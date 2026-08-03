@@ -3,7 +3,7 @@ const API_BASE_KEY='shanman-admin-api-base';
 const isGitHubPages=location.hostname.endsWith('.github.io');
 const configuredApiBase=String(globalThis.SHANMAN_API_BASE||'').trim();
 const initialApiBase=localStorage.getItem(API_BASE_KEY)||configuredApiBase||(isGitHubPages?'':location.origin);
-const state={token:sessionStorage.getItem(TOKEN_KEY)||'',user:null,page:'dashboard',apiBase:initialApiBase.replace(/\/$/,'')};
+const state={token:sessionStorage.getItem(TOKEN_KEY)||'',user:null,page:'dashboard',apiBase:initialApiBase.replace(/\/$/,''),catalogSkills:[]};
 const $=(selector)=>document.querySelector(selector);
 const content=$('#content');
 const pageMeta={dashboard:['OVERVIEW','平台概览'],agents:['AGENTS','智能体管理'],skills:['SKILLS','技能管理'],users:['USERS & LICENSES','用户与授权'],audit:['AUDIT & USAGE','操作与统计']};
@@ -51,14 +51,17 @@ async function renderDashboard(){
 function statCard(label,value,tip=''){return `<article class="stat"><small>${esc(label)}</small><strong>${esc(value)}</strong>${tip?`<small>${esc(tip)}</small>`:''}</article>`}
 
 async function renderProducts(type){
- const label=type==='agents'?'智能体':'技能';const data=await api(`/api/admin/${type}`);
- content.innerHTML=`<section class="panel"><div class="panel-head"><div><h2>上传${label}包</h2><p>支持最大 10MB 的 JSON 或 ZIP；包内 manifest.version 必须递增</p></div></div>
- <form id="uploadForm" class="upload-form" data-type="${type}"><label class="field">选择安装包<input name="package" type="file" accept=".json,.zip,application/json,application/zip" required></label><button class="primary" type="submit">上传为草稿</button></form></section>
+ const label=type==='agents'?'智能体':'技能';
+ const [data,skills]=type==='agents'?await Promise.all([api('/api/admin/agents'),api('/api/admin/skills')]):[await api('/api/admin/skills'),null];
+ if(skills)state.catalogSkills=skills.items.filter((item)=>item.status!=='deleted');
+ const builder=type==='agents'?`<section class="panel agent-builder-hero"><div><span class="eyebrow">AGENT BUILDER</span><h2>直接在网页制作智能体</h2><p>配置角色提示词、模型、独立工作区、文件与联网权限，并为它绑定专属技能。</p><div class="builder-points"><span>结构化配置</span><span>独立技能</span><span>版本管理</span><span>草稿 / 上架</span></div></div><button class="primary builder-create" type="button" data-action="create-agent">+  新建智能体</button></section>`:'';
+ content.innerHTML=`${builder}<section class="panel"><div class="panel-head"><div><h2>${type==='agents'?'上传现有智能体包':'上传技能包'}</h2><p>保留包上传能力：支持最大 10MB 的 JSON 或 ZIP，manifest.version 必须递增</p></div></div>
+ <form id="uploadForm" class="upload-form" data-type="${type}"><label class="field">选择安装包<input name="package" type="file" accept=".json,.zip,application/json,application/zip" required></label><button class="secondary" type="submit">上传为草稿</button></form></section>
  <section class="panel"><div class="panel-head"><div><h2>${label}列表</h2><p>${data.items.length} 项，只有已上架且有版本的内容会出现在客户市场</p></div></div>${productTable(data.items,type)}</section>`;
 }
 function productTable(items,type){
  if(!items.length)return empty('暂无内容，请先上传一个安装包');
- return `<div class="table-wrap"><table><thead><tr><th>名称</th><th>slug</th><th>版本</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${items.map((item)=>`<tr><td><strong>${esc(item.name)}</strong><br><span class="subtle">${esc(item.summary||'无摘要')}</span></td><td class="mono">${esc(item.slug)}</td><td>${esc(item.latest_version?.version||'—')}</td><td>${status(item.status)}</td><td>${date(item.updated_at)}</td><td><div class="actions"><button class="table-action" data-action="edit-product" data-type="${type}" data-id="${item.id}" data-name="${esc(item.name)}" data-summary="${esc(item.summary||'')}" data-description="${esc(item.description||'')}">编辑</button>${item.status==='published'?`<button class="table-action" data-action="unpublish" data-type="${type}" data-id="${item.id}">下架</button>`:`<button class="table-action" data-action="publish" data-type="${type}" data-id="${item.id}">上架</button>`}<button class="table-action warn" data-action="delete-product" data-type="${type}" data-id="${item.id}">删除</button></div></td></tr>`).join('')}</tbody></table></div>`;
+ return `<div class="table-wrap"><table><thead><tr><th>名称</th><th>slug</th><th>${type==='agents'?'分类 / 技能':'类型'}</th><th>版本</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${items.map((item)=>{const latest=item.latestVersion||item.latest_version;const updated=item.updatedAt||item.updated_at;const editAction=type==='agents'?'edit-agent':'edit-product';return `<tr><td><strong>${esc(item.name)}</strong><br><span class="subtle">${esc(item.summary||'无摘要')}</span></td><td class="mono">${esc(item.slug)}</td><td>${type==='agents'?`<span class="category-pill">${esc(item.category||'通用')}</span><br><span class="subtle">${(item.skills||[]).length} 个技能</span>`:'技能包'}</td><td>${esc(latest?.version||'—')}</td><td>${status(item.status)}</td><td>${date(updated)}</td><td><div class="actions"><button class="table-action" data-action="${editAction}" data-type="${type}" data-id="${item.id}"${type==='skills'?` data-name="${esc(item.name)}" data-summary="${esc(item.summary||'')}" data-description="${esc(item.description||'')}"`:''}>编辑</button>${type==='agents'?`<button class="table-action" data-action="clone-agent" data-id="${item.id}">复制</button>`:''}${item.status==='published'?`<button class="table-action" data-action="unpublish" data-type="${type}" data-id="${item.id}">下架</button>`:`<button class="table-action" data-action="publish" data-type="${type}" data-id="${item.id}">上架</button>`}<button class="table-action warn" data-action="delete-product" data-type="${type}" data-id="${item.id}">删除</button></div></td></tr>`}).join('')}</tbody></table></div>`;
 }
 
 async function renderUsers(){
@@ -83,6 +86,67 @@ function editDialog(button){
  $('#dialogRoot').innerHTML=`<div class="dialog-backdrop"><div class="dialog" role="dialog" aria-modal="true"><h2>编辑资源</h2><form id="editProductForm" data-type="${button.dataset.type}" data-id="${button.dataset.id}"><label class="field">名称<input name="name" maxlength="120" value="${esc(button.dataset.name)}" required></label><label class="field">摘要<textarea name="summary" maxlength="500">${esc(button.dataset.summary)}</textarea></label><label class="field">说明<textarea name="description" rows="5" maxlength="50000">${esc(button.dataset.description)}</textarea></label><div class="dialog-actions"><button class="secondary" type="button" data-action="close-dialog">取消</button><button class="primary" type="submit">保存</button></div></form></div></div>`;
 }
 
+function checked(value){return value?' checked':''}
+function selected(value,current){return value===current?' selected':''}
+function agentSkillSelector(selectedIds=[]){
+ const active=new Set(selectedIds||[]);
+ if(!state.catalogSkills.length)return '<div class="builder-empty">还没有可选技能。请先在“技能”页上传技能包。</div>';
+ return `<div class="skill-picker">${state.catalogSkills.map((skill)=>{const version=skill.latestVersion||skill.latest_version;return `<label class="skill-option"><input type="checkbox" name="skillIds" value="${skill.id}"${checked(active.has(skill.id))}><span><strong>${esc(skill.name)}</strong><small>${esc(skill.summary||'无摘要')} · ${esc(version?.version||'无版本')}</small></span>${status(skill.status)}</label>`}).join('')}</div>`;
+}
+
+async function openAgentBuilder({id='',clone=false}={}){
+ let agent={workspace:{}};
+ if(id)agent=await api(`/api/admin/agents/${id}`);
+ const latest=agent.latestVersion||agent.latest_version||agent.versions?.[0];
+ const workspace=agent.workspace||{};
+ const editing=Boolean(id&&!clone);
+ const cloneSuffix=Date.now().toString().slice(-6);
+ const slug=clone?`${String(agent.slug||'agent').slice(0,56).replace(/-+$/,'')}-${cloneSuffix}`:agent.slug||`agent-${cloneSuffix}`;
+ const name=clone?`${agent.name||'智能体'} 副本`:agent.name||'';
+ const version=clone?'1.0.0':latest?.version||'1.0.0';
+ $('#dialogRoot').innerHTML=`<div class="dialog-backdrop agent-builder-backdrop"><div class="dialog agent-builder-dialog" role="dialog" aria-modal="true" aria-labelledby="agentBuilderTitle">
+  <header class="builder-header"><div><span class="eyebrow">AGENT BUILDER</span><h2 id="agentBuilderTitle">${editing?'编辑智能体':clone?'复制智能体':'新建智能体'}</h2><p>设定它是谁、如何工作、可以使用哪些技能与工具。</p></div><button class="dialog-close" type="button" data-action="close-dialog" aria-label="关闭">×</button></header>
+  <form id="agentBuilderForm" data-id="${editing?id:''}">
+   <section class="builder-section"><div class="section-title"><span>01</span><div><h3>基础资料</h3><p>客户端智能体市场中展示的信息</p></div></div><div class="builder-grid three">
+    <label class="field">名称<input name="name" maxlength="120" value="${esc(name)}" required placeholder="例：新媒体内容总监"></label>
+    <label class="field">Slug<input name="slug" maxlength="64" pattern="[a-z0-9][a-z0-9-]*" value="${esc(slug)}" required placeholder="content-director"></label>
+    <label class="field">分类<input name="category" maxlength="80" value="${esc(agent.category||'通用')}" placeholder="内容 / 运营 / 销售"></label>
+    <label class="field">图标<input name="icon" maxlength="120" value="${esc(agent.icon||'bot')}" placeholder="bot"></label>
+    <label class="field span-2">头像 URL<input name="avatar" maxlength="2048" value="${esc(agent.avatar||'')}" placeholder="https://... （可留空）"></label>
+    <label class="field span-3">摘要<input name="summary" maxlength="500" value="${esc(agent.summary||'')}" placeholder="一句话说清它能解决什么问题"></label>
+    <label class="field span-3">详细介绍<textarea name="description" rows="3" maxlength="50000" placeholder="介绍职责、适用场景与交付物">${esc(agent.description||'')}</textarea></label>
+   </div></section>
+   <section class="builder-section"><div class="section-title"><span>02</span><div><h3>角色与提示词</h3><p>定义智能体的行为边界和开场方式</p></div></div><div class="builder-grid">
+    <label class="field span-2">系统提示词<textarea name="systemPrompt" rows="9" maxlength="200000" required placeholder="你是……\n\n职责：……\n工作流程：……\n输出标准：……">${esc(agent.systemPrompt||'')}</textarea></label>
+    <label class="field span-2">欢迎语<textarea name="welcomeMessage" rows="3" maxlength="10000" placeholder="用户打开智能体时看到的第一句话">${esc(agent.welcomeMessage||'')}</textarea></label>
+   </div></section>
+   <section class="builder-section"><div class="section-title"><span>03</span><div><h3>默认模型</h3><p>客户端仍可在被允许时更换模型</p></div></div><div class="builder-grid three">
+    <label class="field">提供方<input name="provider" maxlength="120" value="${esc(agent.provider||'')}" list="providerOptions" placeholder="openai-compatible"><datalist id="providerOptions"><option value="openai-compatible"><option value="deepseek"><option value="qwen"><option value="doubao"><option value="local"></datalist></label>
+    <label class="field">模型 ID<input name="model" maxlength="160" value="${esc(agent.model||'')}" placeholder="例：deepseek-chat"></label>
+    <label class="field">温度 <output id="temperatureValue">${Number(agent.temperature??0.7).toFixed(1)}</output><input name="temperature" type="range" min="0" max="2" step="0.1" value="${Number(agent.temperature??0.7)}"></label>
+   </div></section>
+   <section class="builder-section"><div class="section-title"><span>04</span><div><h3>独立工作区</h3><p>为这个智能体设定目标、文件目录、记忆和工具权限</p></div></div><div class="builder-grid">
+    <label class="field span-2">工作目标<textarea name="workspaceGoal" rows="3" maxlength="20000" placeholder="它在这个工作区需要持续达成的目标">${esc(workspace.goal||'')}</textarea></label>
+    <label class="field span-2">角色规则<textarea name="workspaceRoleRules" rows="4" maxlength="50000" placeholder="例：每次修改前先备份；交付文件必须放入指定目录">${esc(workspace.roleRules||'')}</textarea></label>
+    <label class="field">默认交付目录<input name="outputDirectory" maxlength="500" value="${esc(workspace.outputDirectory||'outputs')}" placeholder="outputs"></label>
+    <div class="permission-grid span-2">
+     <label><input type="checkbox" name="memoryEnabled"${checked(workspace.memoryEnabled!==false)}><span><strong>启用长期记忆</strong><small>保留该智能体的独立工作记忆</small></span></label>
+     <label><input type="checkbox" name="allowWeb"${checked(Boolean(workspace.allowWeb))}><span><strong>允许联网</strong><small>可以访问公网资料</small></span></label>
+     <label><input type="checkbox" name="allowFiles"${checked(workspace.allowFiles!==false)}><span><strong>允许文件</strong><small>可以读写工作区文件</small></span></label>
+     <label><input type="checkbox" name="allowTerminal"${checked(Boolean(workspace.allowTerminal))}><span><strong>允许终端</strong><small>高权限，仅在必要时开启</small></span></label>
+    </div>
+   </div></section>
+   <section class="builder-section"><div class="section-title"><span>05</span><div><h3>专属技能</h3><p>勾选后技能将写入智能体配置，客户端安装时可按配置启用</p></div></div>${agentSkillSelector(agent.skillIds||[])}</section>
+   <section class="builder-section compact"><div class="section-title"><span>06</span><div><h3>版本与发布</h3><p>新版本使用 x.y.z；草稿仅管理员可见</p></div></div><div class="builder-grid three">
+    <label class="field">版本<input name="version" value="${esc(version)}" pattern="(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)" required></label>
+    <label class="field">状态<select name="status"><option value="draft"${selected('draft',clone?'draft':agent.status||'draft')}>草稿</option><option value="unpublished"${selected('unpublished',agent.status)}>已下架</option><option value="published"${selected('published',agent.status)}>直接上架</option></select></label>
+    <label class="field">版本说明<input name="changelog" maxlength="20000" placeholder="本次更新内容"></label>
+   </div></section>
+   <div class="dialog-actions sticky"><button class="secondary" type="button" data-action="close-dialog">取消</button><span class="save-hint">保存后会自动生成市场 manifest</span><button class="primary" type="submit">${editing?'保存智能体':'创建智能体'}</button></div>
+  </form></div></div>`;
+ const temperature=$('#agentBuilderForm input[name="temperature"]');temperature?.addEventListener('input',()=>{$('#temperatureValue').textContent=Number(temperature.value).toFixed(1)});
+}
+
 function normalizeApiBase(value){
  const raw=String(value||'').trim().replace(/\/$/,'');if(!raw)return '';
  let parsed;try{parsed=new URL(raw)}catch{throw new Error('请输入完整的后台地址，例如 https://api.example.com')}
@@ -91,8 +155,8 @@ function normalizeApiBase(value){
  return parsed.origin+parsed.pathname.replace(/\/$/,'');
 }
 
-const apiBaseField=$('#apiBaseField');const apiBaseInput=$('#apiBaseInput');const hostingHint=$('#hostingHint');
-if(isGitHubPages||!state.apiBase){apiBaseField.hidden=false;hostingHint.hidden=false;hostingHint.textContent='当前界面由 GitHub Pages 免费托管。登录、上传和统计仍需连接独立的 HTTPS 后台服务。'}
+const apiBaseField=$('#apiBaseField');const apiBaseInput=$('#apiBaseInput');
+if(!state.apiBase)apiBaseField.hidden=false;
 apiBaseInput.value=state.apiBase;
 
 $('#loginForm').addEventListener('submit',async(event)=>{event.preventDefault();$('#loginError').textContent='';const form=new FormData(event.currentTarget);try{const nextApiBase=normalizeApiBase(form.get('apiBase')||state.apiBase);if(nextApiBase!==state.apiBase){state.apiBase=nextApiBase;state.token='';sessionStorage.removeItem(TOKEN_KEY);if(nextApiBase)localStorage.setItem(API_BASE_KEY,nextApiBase);else localStorage.removeItem(API_BASE_KEY)}const data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({identifier:form.get('identifier'),password:form.get('password')})});if(data.user?.role!=='admin')throw new Error('该账号不是管理员');state.token=data.token;state.user=data.user;sessionStorage.setItem(TOKEN_KEY,data.token);showApp()}catch(error){$('#loginError').textContent=error.message}});
@@ -107,11 +171,33 @@ content.addEventListener('submit',async(event)=>{
  }catch(error){notice(error.message,true)}
 });
 
-$('#dialogRoot').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.target;if(form.id!=='editProductForm')return;const data=new FormData(form);try{await api(`/api/admin/${form.dataset.type}/${form.dataset.id}`,{method:'PATCH',body:JSON.stringify({name:data.get('name'),summary:data.get('summary'),description:data.get('description')})});$('#dialogRoot').innerHTML='';notice('保存成功');await navigate(form.dataset.type)}catch(error){notice(error.message,true)}});
+$('#dialogRoot').addEventListener('submit',async(event)=>{
+ event.preventDefault();const form=event.target;const data=new FormData(form);
+ try{
+  if(form.id==='editProductForm'){
+   await api(`/api/admin/${form.dataset.type}/${form.dataset.id}`,{method:'PATCH',body:JSON.stringify({name:data.get('name'),summary:data.get('summary'),description:data.get('description')})});
+   $('#dialogRoot').innerHTML='';notice('保存成功');await navigate(form.dataset.type);return;
+  }
+  if(form.id==='agentBuilderForm'){
+   const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=true;
+   const payload={
+    name:data.get('name'),slug:data.get('slug'),category:data.get('category'),summary:data.get('summary'),description:data.get('description'),icon:data.get('icon'),avatar:data.get('avatar'),
+    systemPrompt:data.get('systemPrompt'),welcomeMessage:data.get('welcomeMessage'),provider:data.get('provider'),model:data.get('model'),temperature:Number(data.get('temperature')),
+    workspace:{goal:data.get('workspaceGoal'),roleRules:data.get('workspaceRoleRules'),outputDirectory:data.get('outputDirectory'),memoryEnabled:data.has('memoryEnabled'),allowWeb:data.has('allowWeb'),allowFiles:data.has('allowFiles'),allowTerminal:data.has('allowTerminal')},
+    skillIds:data.getAll('skillIds'),version:data.get('version'),status:data.get('status'),changelog:data.get('changelog')
+   };
+   const id=form.dataset.id;await api(id?`/api/admin/agents/${id}`:'/api/admin/agents',{method:id?'PATCH':'POST',body:JSON.stringify(payload)});
+   $('#dialogRoot').innerHTML='';notice(id?'智能体已保存':'智能体已创建');await navigate('agents');return;
+  }
+ }catch(error){const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=false;notice(error.message,true)}
+});
 
 document.addEventListener('click',async(event)=>{
  const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
  if(action==='close-dialog'){$('#dialogRoot').innerHTML='';return}if(action==='edit-product'){editDialog(button);return}
+ if(action==='create-agent'||action==='edit-agent'||action==='clone-agent'){
+  try{await openAgentBuilder({id:button.dataset.id||'',clone:action==='clone-agent'})}catch(error){notice(error.message,true)}return;
+ }
  if(action==='copy-license'){const value=button.previousElementSibling?.value||'';try{await navigator.clipboard.writeText(value);notice('已复制授权 Key')}catch{notice('复制失败，请手动复制',true)}return}
  try{
   if(action==='publish'||action==='unpublish'){await api(`/api/admin/${button.dataset.type}/${button.dataset.id}/${action}`,{method:'POST'});notice(action==='publish'?'已上架':'已下架');await navigate(button.dataset.type)}

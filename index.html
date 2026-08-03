@@ -8,18 +8,48 @@
 </head>
 <body>
   <section id="loginView" class="login-shell">
-    <form id="loginForm" class="login-card">
-      <div class="brand-mark">闪</div>
-      <p class="eyebrow">SHANMAN CONTROL</p>
-      <h1>管理员登录</h1>
-      <p class="muted">管理智能体、技能、用户授权与匿名使用统计</p>
-      <label>账号或邮箱<input name="identifier" autocomplete="username" required></label>
-      <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
-      <label id="apiBaseField" hidden>后台 API 地址<input id="apiBaseInput" name="apiBase" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com"></label>
-      <p id="hostingHint" class="hosting-hint" hidden></p>
-      <button class="primary wide" type="submit">登录后台</button>
-      <p id="loginError" class="error" role="alert"></p>
-    </form>
+    <div class="login-stage">
+      <section class="login-showcase" aria-label="闪漫 AI 智能体团队">
+        <div class="showcase-glow glow-one"></div>
+        <div class="showcase-glow glow-two"></div>
+        <div class="showcase-brand">
+          <span class="showcase-logo">闪</span>
+          <span><strong>闪漫 AI</strong><small>智能体管理平台</small></span>
+        </div>
+        <div class="showcase-copy">
+          <p class="showcase-kicker">YOUR AI WORKFORCE</p>
+          <h2>让每一位智能体<br>成为团队的一员</h2>
+          <p>集中制作智能体、配置专属技能与工作区，让数字团队持续为业务创造价值。</p>
+        </div>
+        <div class="team-portrait" aria-hidden="true">
+          <span class="portrait portrait-1"><img src="./assets/team-1.png" alt=""></span>
+          <span class="portrait portrait-2"><img src="./assets/team-2.png" alt=""></span>
+          <span class="portrait portrait-3"><img src="./assets/team-3.png" alt=""></span>
+          <span class="portrait portrait-4"><img src="./assets/team-4.png" alt=""></span>
+          <span class="portrait portrait-5"><img src="./assets/team-5.png" alt=""></span>
+          <span class="portrait portrait-6"><img src="./assets/team-6.png" alt=""></span>
+          <span class="portrait portrait-7"><img src="./assets/team-7.png" alt=""></span>
+          <span class="portrait portrait-8"><img src="./assets/team-8.png" alt=""></span>
+          <span class="team-core"><i></i><strong>AI</strong><small>TEAM</small></span>
+        </div>
+        <div class="showcase-tags"><span>智能体制作</span><span>技能编排</span><span>工作区配置</span></div>
+      </section>
+
+      <form id="loginForm" class="login-card">
+        <div class="login-heading">
+          <div class="brand-mark">闪</div>
+          <p class="eyebrow">SHANMAN CONTROL</p>
+          <h1>欢迎回来</h1>
+          <p class="muted">登录管理后台，继续打造你的 AI 团队</p>
+        </div>
+        <label>账号或邮箱<input name="identifier" autocomplete="username" placeholder="请输入管理员账号" required></label>
+        <label>密码<input name="password" type="password" autocomplete="current-password" placeholder="请输入登录密码" required></label>
+        <label id="apiBaseField" hidden>后台 API 地址<input id="apiBaseInput" name="apiBase" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com"></label>
+        <button class="primary wide login-submit" type="submit">登录管理后台 <span>→</span></button>
+        <p id="loginError" class="error" role="alert"></p>
+        <p class="login-footnote"><span></span> 安全加密连接</p>
+      </form>
+    </div>
   </section>
 
   <div id="appView" class="app-shell" hidden>
