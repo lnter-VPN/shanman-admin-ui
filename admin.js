@@ -64,14 +64,78 @@ function recentActivity(items){if(!items?.length)return empty('还没有操作�
 function actionLabel(value=''){const action=String(value);if(action.includes('publish')&&!action.includes('unpublish'))return '内容已上架';if(action.includes('unpublish'))return '内容已下架';if(action.includes('delete'))return '内容已删除';if(action.includes('avatar'))return '上传智能体头像';if(action.includes('upload'))return '上传资源包';if(action.includes('create'))return '创建新资源';if(action.includes('update'))return '更新资源配置';return action||'后台操作'}
 
 async function renderProducts(type){
- const label=type==='agents'?'智能体':'技能';
- const [data,skills]=type==='agents'?await Promise.all([api('/api/admin/agents'),api('/api/admin/skills')]):[await api('/api/admin/skills'),null];
- if(skills)state.catalogSkills=skills.items.filter((item)=>item.status!=='deleted');
- const filter=state.productFilters[type]||'active';const counts=countStatuses(data.items);const visible=data.items.filter((item)=>filter==='active'?item.status!=='deleted':item.status===filter);
- const builder=type==='agents'?`<section class="panel agent-builder-hero"><div><span class="eyebrow">AGENT BUILDER</span><h2>直接在网页制作智能体</h2><p>用更清晰的四步完成头像、角色、工作区和专属技能配置。</p><div class="builder-points"><span>真实头像</span><span>角色提示词</span><span>独立工作区</span><span>专属技能</span></div></div><button class="primary builder-create" type="button" data-action="create-agent">+  新建智能体</button></section>`:'';
- content.innerHTML=`${builder}<section class="panel"><div class="panel-head"><div><h2>${type==='agents'?'上传现有智能体包':'上传技能包'}</h2><p>保留包上传能力：支持最大 10MB 的 JSON 或 ZIP，manifest.version 必须递增</p></div></div>
- <form id="uploadForm" class="upload-form" data-type="${type}"><label class="field">选择安装包<input name="package" type="file" accept=".json,.zip,application/json,application/zip" required></label><button class="secondary" type="submit">上传为草稿</button></form></section>
- <section class="panel product-panel"><div class="panel-head"><div><h2>${label}列表</h2><p>状态与客户可见性已明确标注，删除项单独归档</p></div><div class="catalog-total"><strong>${data.items.length}</strong><small>全部${label}</small></div></div>${productSummary(counts)}${productFilters(type,filter,counts)}${productTable(visible,type)}</section>`;
+  const label=type==='agents'?'智能体':'技能';
+  const [data,skills]=type==='agents'?await Promise.all([api('/api/admin/agents'),api('/api/admin/skills')]):[await api('/api/admin/skills'),null];
+  if(skills)state.catalogSkills=skills.items.filter((item)=>item.status!=='deleted');
+  const filter=state.productFilters[type]||'active';const counts=countStatuses(data.items);const visible=data.items.filter((item)=>filter==='active'?item.status!=='deleted':item.status===filter);
+  const builder=type==='agents'?`<section class="panel agent-builder-hero"><div><span class="eyebrow">AGENT BUILDER</span><h2>直接在网页制作智能体</h2><p>用更清晰的四步完成头像、角色、工作区和专属技能配置。</p><div class="builder-points"><span>真实头像</span><span>角色提示词</span><span>独立工作区</span><span>专属技能</span></div></div><button class="primary builder-create" type="button" data-action="create-agent">+  新建智能体</button></section>`:'';
+  content.innerHTML=`${builder}${uploadPanel(type)}
+  <section class="panel product-panel"><div class="panel-head"><div><h2>${label}列表</h2><p>状态与客户可见性已明确标注，删除项单独归档</p></div><div class="catalog-total"><strong>${data.items.length}</strong><small>全部${label}</small></div></div>${productSummary(counts)}${productFilters(type,filter,counts)}${productTable(visible,type)}</section>`;
+  bindUploadForm($('#uploadForm'));
+ }
+
+function uploadPanel(type){
+  if(type==='agents')return `<section class="panel"><div class="panel-head"><div><h2>上传现有智能体包</h2><p>支持最大 10MB 的 JSON 或 ZIP，manifest.version 必须递增；上传后先保存为草稿。</p></div></div><form id="uploadForm" class="upload-form" data-type="agents"><label class="field">选择安装包<input name="package" type="file" accept=".json,.zip,application/json,application/zip" required></label><button class="secondary" type="submit">上传智能体包</button></form></section>`;
+  return `<section class="panel skill-upload-panel"><div class="panel-head"><div><h2>上传技能</h2><p>可以直接选择技能文件夹，也可以继续上传 JSON / ZIP。文件夹至少要包含 <b>SKILL.md</b>，其他安全文件会一并打包保存。</p></div><span class="upload-limit">≤ 10 MB</span></div>
+  <form id="uploadForm" class="skill-upload-form" data-type="skills">
+   <div class="skill-upload-fields"><label class="field"><span>技能名称 <b>*</b></span><input name="skillName" maxlength="120" required placeholder="例如：小红书内容策划"></label><label class="field"><span>技能标识 <b>*</b></span><input name="skillSlug" maxlength="64" pattern="[a-z0-9][a-z0-9-]{0,63}" required placeholder="例如：xiaohongshu-content"></label><label class="field"><span>分类</span><input name="skillCategory" maxlength="30" placeholder="例如：内容创作"></label><label class="field"><span>版本 <b>*</b></span><input name="skillVersion" value="1.0.0" pattern="\\d+\\.\\d+\\.\\d+" required placeholder="1.0.0"></label><label class="field span-2"><span>一句话摘要</span><input name="skillSummary" maxlength="500" placeholder="告诉客户这个技能适合解决什么问题"></label><label class="field span-2"><span>技能说明</span><textarea name="skillDescription" rows="2" maxlength="50000" placeholder="可选，后台详情页展示"></textarea></label><label class="field span-2"><span>更新说明</span><input name="skillChangelog" maxlength="20000" placeholder="例如：首次发布"></label></div>
+   <div class="skill-source-grid"><label class="skill-source-card folder-source"><span class="source-icon">⌁</span><span><strong>选择技能文件夹</strong><small>推荐：自动读取 SKILL.md 和 manifest.json</small></span><input id="skillFolder" name="folder" type="file" webkitdirectory directory multiple accept=".md,.json,.txt,.png,.jpg,.jpeg,.webp,.gif,.ico"></label><label class="skill-source-card package-source"><span class="source-icon">⇧</span><span><strong>选择 JSON / ZIP 包</strong><small>已有标准安装包可直接上传</small></span><input name="package" type="file" accept=".json,.zip,application/json,application/zip"></label></div>
+   <p id="skillFolderMeta" class="skill-folder-meta">尚未选择文件夹。文件夹上传时，上面的名称、标识和发布选项会覆盖 manifest 对应字段。</p>
+   <div class="skill-upload-footer"><div class="publish-mode"><strong>上传后状态</strong><label class="selected-draft"><input type="radio" name="publishMode" value="draft" checked><span><b>保存为草稿</b><small>仅管理员可见，确认后再上架</small></span></label><label class="selected-published"><input type="radio" name="publishMode" value="published"><span><b>上传后直接上架</b><small>完成校验后立即同步到客户端市场</small></span></label></div><button class="primary skill-upload-submit" type="submit">上传技能</button></div>
+  </form></section>`;
+}
+
+function normalizeSkillSlug(value){
+  const normalized=String(value||'').normalize('NFKD').replace(/[^\w\s-]/g,'').replace(/[\s_]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').toLowerCase().slice(0,64);
+  return normalized||`skill-${Date.now().toString(36)}`;
+}
+
+function uploadRoot(files){
+  const roots=[...files].map(file=>String(file.webkitRelativePath||'').split('/')[0]).filter(Boolean);
+  return roots[0]||'';
+}
+
+function relativeUploadPath(file,root){
+  let value=String(file.webkitRelativePath||file.name||'').replaceAll('\\','/').replace(/^\/+|\/+$/g,'');
+  if(root&&value.startsWith(`${root}/`))value=value.slice(root.length+1);
+  if(!value||value.split('/').some(part=>!part||part==='.'||part==='..'))throw new Error('技能文件夹包含无效路径');
+  return value;
+}
+
+function crc32(bytes){
+  if(!crc32.table){crc32.table=Array.from({length:256},(_,index)=>{let value=index;for(let bit=0;bit<8;bit++)value=(value&1)?0xedb88320^(value>>>1):value>>>1;return value>>>0})}
+  let value=0xffffffff;for(const byte of bytes)value=crc32.table[(value^byte)&0xff]^(value>>>8);return (value^0xffffffff)>>>0;
+}
+
+function storedZip(entries){
+  const encoder=new TextEncoder();const local=[];const central=[];let offset=0;const now=new Date();const dosTime=(now.getHours()<<11)|(now.getMinutes()<<5)|Math.floor(now.getSeconds()/2);const dosDate=((Math.max(1980,now.getFullYear())-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+  const u16=(view,at,value)=>view.setUint16(at,value,true);const u32=(view,at,value)=>view.setUint32(at,value>>>0,true);
+  for(const entry of entries){const nameBytes=encoder.encode(entry.name);const data=entry.bytes;const checksum=crc32(data);const header=new Uint8Array(30+nameBytes.length);const view=new DataView(header.buffer);u32(view,0,0x04034b50);u16(view,4,20);u16(view,6,0x800);u16(view,8,0);u16(view,10,dosTime);u16(view,12,dosDate);u32(view,14,checksum);u32(view,18,data.length);u32(view,22,data.length);u16(view,26,nameBytes.length);u16(view,28,0);header.set(nameBytes,30);local.push(header,data);const record=new Uint8Array(46+nameBytes.length);const centralView=new DataView(record.buffer);u32(centralView,0,0x02014b50);u16(centralView,4,20);u16(centralView,6,20);u16(centralView,8,0x800);u16(centralView,10,0);u16(centralView,12,dosTime);u16(centralView,14,dosDate);u32(centralView,16,checksum);u32(centralView,20,data.length);u32(centralView,24,data.length);u16(centralView,28,nameBytes.length);u16(centralView,30,0);u16(centralView,32,0);u16(centralView,34,0);u16(centralView,36,0);u32(centralView,38,0);u32(centralView,42,offset);record.set(nameBytes,46);central.push(record);offset+=header.length+data.length}
+  const centralSize=central.reduce((total,item)=>total+item.length,0);const end=new Uint8Array(22);const endView=new DataView(end.buffer);u32(endView,0,0x06054b50);u16(endView,4,0);u16(endView,6,0);u16(endView,8,entries.length);u16(endView,10,entries.length);u32(endView,12,centralSize);u32(endView,16,offset);return new Blob([...local,...central,end],{type:'application/zip'});
+}
+
+async function skillFolderPackage(form,files){
+  if(!files.length)throw new Error('请选择技能文件夹');
+  const root=uploadRoot(files);const getPath=file=>relativeUploadPath(file,root);const core=(name)=>files.filter(file=>getPath(file).split('/').pop().toLowerCase()===name).sort((a,b)=>getPath(a).split('/').length-getPath(b).split('/').length);
+  const markdown=core('skill.md')[0];if(!markdown)throw new Error('技能文件夹中缺少 SKILL.md');
+  const manifestFile=core('manifest.json')[0];let sourceManifest={};
+  if(manifestFile){try{sourceManifest=JSON.parse(await manifestFile.text());if(!sourceManifest||typeof sourceManifest!=='object'||Array.isArray(sourceManifest))throw new Error()}catch{throw new Error('manifest.json 不是有效 JSON')}}
+  const data=new FormData(form);const slug=normalizeSkillSlug(data.get('skillSlug'));const manifest={...sourceManifest,type:'skill',name:String(data.get('skillName')||'').trim(),slug,summary:String(data.get('skillSummary')||'').trim(),description:String(data.get('skillDescription')||'').trim(),category:String(data.get('skillCategory')||sourceManifest.category||'通用').trim(),version:String(data.get('skillVersion')||'1.0.0').trim(),changelog:String(data.get('skillChangelog')||'').trim()};
+  if(!manifest.name)throw new Error('请填写技能名称');
+  const entries=[{name:'manifest.json',bytes:new TextEncoder().encode(`${JSON.stringify(manifest,null,2)}\\n`)},{name:'SKILL.md',bytes:new Uint8Array(await markdown.arrayBuffer())}];const seen=new Set(entries.map(entry=>entry.name.toLowerCase()));let total=entries.reduce((sum,entry)=>sum+entry.bytes.length,0);
+  for(const file of files){const name=getPath(file);const lower=name.toLowerCase();const baseName=lower.split('/').pop();if(seen.has(lower)||['manifest.json','skill.md'].includes(baseName)||lower.endsWith('/'))continue;const bytes=new Uint8Array(await file.arrayBuffer());total+=bytes.length;if(total>10*1024*1024)throw new Error('技能文件夹打包后不能超过 10MB');entries.push({name,bytes});seen.add(lower)}
+  const blob=storedZip(entries);if(blob.size>10*1024*1024)throw new Error('技能文件夹打包后不能超过 10MB');return new File([blob],`${slug}.zip`,{type:'application/zip'});
+}
+
+async function skillJsonPackage(form,file){
+  if(!file.name.toLowerCase().endsWith('.json'))return file;
+  try{const value=JSON.parse(await file.text());if(!value||typeof value!=='object'||!value.manifest)return file;const data=new FormData(form);const manifest={...value.manifest,type:'skill',name:String(data.get('skillName')||value.manifest.name||'').trim(),slug:normalizeSkillSlug(data.get('skillSlug')||value.manifest.slug),summary:String(data.get('skillSummary')||value.manifest.summary||'').trim(),description:String(data.get('skillDescription')||value.manifest.description||'').trim(),category:String(data.get('skillCategory')||value.manifest.category||'通用').trim(),version:String(data.get('skillVersion')||value.manifest.version||'1.0.0').trim(),changelog:String(data.get('skillChangelog')||value.manifest.changelog||'').trim()};return new File([JSON.stringify({...value,manifest})],`${manifest.slug}.json`,{type:'application/json'})}catch{throw new Error('JSON 技能包不是有效格式')}
+}
+
+function bindUploadForm(form){
+  if(!form||form.dataset.type!=='skills')return;const folder=form.elements.folder;const name=form.elements.skillName;const slug=form.elements.skillSlug;const meta=form.querySelector('#skillFolderMeta');
+  name.addEventListener('input',()=>{name.dataset.auto='false'});slug.addEventListener('input',()=>{slug.dataset.auto='false'});
+  folder.addEventListener('change',()=>{const files=[...folder.files];const root=uploadRoot(files);if(root&&!name.value){name.value=root;name.dataset.auto='true'}if(root&&(!slug.value||slug.dataset.auto==='true')){slug.value=normalizeSkillSlug(root);slug.dataset.auto='true'}meta.textContent=files.length?`已选择“${root||'技能文件夹'}”，共 ${files.length} 个文件；提交时会自动打包并校验 SKILL.md。`:'尚未选择文件夹。文件夹上传时，上面的名称、标识和发布选项会覆盖 manifest 对应字段。'});
 }
 function countStatuses(items){return items.reduce((result,item)=>{result[item.status]=(result[item.status]||0)+1;return result},{draft:0,published:0,unpublished:0,deleted:0})}
 function productSummary(counts){return `<div class="product-summary"><div class="published"><i></i><span><strong>${counts.published}</strong><small>已上架 · 客户可见</small></span></div><div class="draft"><i></i><span><strong>${counts.draft}</strong><small>草稿 · 仅后台</small></span></div><div class="unpublished"><i></i><span><strong>${counts.unpublished}</strong><small>已下架 · 已隐藏</small></span></div><div class="deleted"><i></i><span><strong>${counts.deleted}</strong><small>回收站 · 可永久删除</small></span></div></div>`}
@@ -195,7 +259,16 @@ $('#logoutButton').addEventListener('click',logout);$('#refreshButton').addEvent
 content.addEventListener('submit',async(event)=>{
  event.preventDefault();const form=event.target;
  try{
-  if(form.id==='uploadForm'){const body=new FormData();const file=form.elements.package.files[0];if(!file)throw new Error('请选择文件');body.append('package',file);await api(`/api/admin/${form.dataset.type}/upload`,{method:'POST',body});notice('上传成功，已保存为草稿');await navigate(form.dataset.type);return}
+   if(form.id==='uploadForm'){
+    const type=form.dataset.type;const body=new FormData();let file;
+    if(type==='skills'){
+     const folderFiles=[...(form.elements.folder?.files||[])];const packageFile=form.elements.package?.files?.[0];
+     if(folderFiles.length)file=await skillFolderPackage(form,folderFiles);else if(packageFile)file=await skillJsonPackage(form,packageFile);else throw new Error('请选择技能文件夹或 JSON / ZIP 安装包');
+     body.append('publishMode',String(form.elements.publishMode?.value||'draft'));
+    }else{file=form.elements.package?.files?.[0];if(!file)throw new Error('请选择文件')}
+    body.append('package',file,file.name);const result=await api(`/api/admin/${type}/upload`,{method:'POST',body});const id=result.product?.id||result.id;if(!id)throw new Error('上传成功但服务器没有返回资源 ID');
+    const expected=type==='skills'?String(form.elements.publishMode?.value||'draft'):'draft';if(type==='skills'&&expected==='published'&&result.product?.status!=='published')await api(`/api/admin/${type}/${id}/publish`,{method:'POST'});await verifyProductState(type,id,expected);notice(expected==='published'?'技能已上传并直接上架，客户端市场已确认可见':'技能已上传，已保存为草稿；客户端暂不可见');await navigate(type);return;
+   }
   if(form.id==='licenseForm'){const data=new FormData(form);const machine=String(data.get('machine')||'').trim().toLowerCase();const validity=String(data.get('validity')||'365');const payload={name:data.get('name'),userId:data.get('userId')||undefined,machine,...(validity==='permanent'?{permanent:true}:{days:Number(validity)})};const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=true;try{const result=await api('/api/admin/licenses',{method:'POST',body:JSON.stringify(payload)});$('#licenseResult').innerHTML=issuedLicenseCard(result);notice('设备专属 Key 已生成并保存到服务器')}finally{if(submit)submit.disabled=false}return}
   if(form.id==='licenseSearchForm'){const data=new FormData(form);const machine=String(data.get('machine')||'').trim().toLowerCase();const target=$('#licenseSearchResult');target.innerHTML='<div class="loading compact">正在查询设备授权…</div>';const result=await api(`/api/admin/licenses/device/${encodeURIComponent(machine)}`);target.innerHTML=searchedLicenseCards(result);return}
  }catch(error){notice(error.message,true)}
@@ -235,7 +308,7 @@ document.addEventListener('click',async(event)=>{
   if(action==='publish'||action==='unpublish'){
    const type=button.dataset.type;const id=button.dataset.id;const expected=action==='publish'?'published':'unpublished';
    const original=button.textContent;button.disabled=true;button.textContent='处理中…';
-   try{const result=await api(`/api/admin/${type}/${id}/${action}`,{method:'POST'});await verifyProductState(type,id,expected);state.productFilters[type]=expected;const affected=Number(result.affectedAgents?.length||0);notice(action==='publish'?'已真实上架，客户端市场已确认可见':`已真实下架，客户端市场已确认隐藏${affected?`；同时下架 ${affected} 个依赖该技能的智能体`:''}`);await navigate(type)}finally{button.disabled=false;button.textContent=original}return;
+    try{await api(`/api/admin/${type}/${id}/${action}`,{method:'POST'});await verifyProductState(type,id,expected);state.productFilters[type]=expected;notice(action==='publish'?'已真实上架，客户端市场已确认可见':type==='skills'?'技能已真实下架，客户端市场已隐藏；绑定智能体保持原状态':'智能体已真实下架，客户端市场已隐藏');await navigate(type)}finally{button.disabled=false;button.textContent=original}return;
   }
   if(action==='delete-product'){
    if(!confirm(`确定将“${button.dataset.name||'该资源'}”移入回收站？它会立即从客户端市场隐藏，之后仍可执行永久删除。`))return;
