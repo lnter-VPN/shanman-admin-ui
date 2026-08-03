@@ -21,7 +21,9 @@ function loading(){content.innerHTML='<div class="loading">正在加载…</div>
 
 async function api(path,options={}){
  if(!state.apiBase)throw new Error('后台 API 尚未配置。GitHub Pages 只负责显示界面，请先填写 HTTPS 后台地址。');
- const headers={...(options.body instanceof FormData?{}:{'content-type':'application/json'}),...(state.token?{authorization:`Bearer ${state.token}`}:{}) ,...(options.headers||{})};
+ const hasBody=options.body!==undefined&&options.body!==null;
+ const isFormData=hasBody&&options.body instanceof FormData;
+ const headers={...(hasBody&&!isFormData?{'content-type':'application/json'}:{}),...(state.token?{authorization:`Bearer ${state.token}`}:{}) ,...(options.headers||{})};
  const response=await fetch(`${state.apiBase}${path}`,{cache:'no-store',...options,headers});
  const text=await response.text();let data={};try{data=text?JSON.parse(text):{}}catch{data={error:text}}
  if(response.status===401&&state.token){logout();throw new Error('登录已过期，请重新登录')}
