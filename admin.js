@@ -225,15 +225,17 @@ async function openAgentBuilder({id='',clone=false}={}){
     <label class="field span-2">系统提示词<textarea name="systemPrompt" rows="9" maxlength="200000" required placeholder="你是……\n\n职责：……\n工作流程：……\n输出标准：……">${esc(agent.systemPrompt||'')}</textarea></label>
     <label class="field span-2">欢迎语<textarea name="welcomeMessage" rows="3" maxlength="10000" placeholder="用户打开智能体时看到的第一句话">${esc(agent.welcomeMessage||'')}</textarea></label>
    </div></section>
-   <section class="builder-section"><div class="section-title"><span>03</span><div><h3>工作区与权限</h3><p>设定长期目标、交付目录、记忆和可用工具</p></div></div><div class="builder-grid">
+   <section class="builder-section"><div class="section-title"><span>03</span><div><h3>工作区与权限</h3><p>设定长期目标、交付目录与记忆；运行能力由客户端统一管理</p></div></div><div class="builder-grid">
     <label class="field span-2">工作目标<textarea name="workspaceGoal" rows="3" maxlength="20000" placeholder="它在这个工作区需要持续达成的目标">${esc(workspace.goal||'')}</textarea></label>
     <label class="field span-2">角色规则<textarea name="workspaceRoleRules" rows="4" maxlength="50000" placeholder="例：每次修改前先备份；交付文件必须放入指定目录">${esc(workspace.roleRules||'')}</textarea></label>
     <label class="field">默认交付目录<input name="outputDirectory" maxlength="500" value="${esc(workspace.outputDirectory||'outputs')}" placeholder="outputs"></label>
     <div class="permission-grid span-2">
      <label><input type="checkbox" name="memoryEnabled"${checked(workspace.memoryEnabled!==false)}><span><strong>启用长期记忆</strong><small>保留该智能体的独立工作记忆</small></span></label>
-     <label><input type="checkbox" name="allowWeb"${checked(Boolean(workspace.allowWeb))}><span><strong>允许联网</strong><small>可以访问公网资料</small></span></label>
      <label><input type="checkbox" name="allowFiles"${checked(workspace.allowFiles!==false)}><span><strong>允许文件</strong><small>可以读写工作区文件</small></span></label>
-     <label><input type="checkbox" name="allowTerminal"${checked(Boolean(workspace.allowTerminal))}><span><strong>允许终端</strong><small>高权限，仅在必要时开启</small></span></label>
+    </div>
+    <div class="runtime-capability-note span-2" role="note" aria-label="客户端运行能力说明">
+     <div><i aria-hidden="true"></i><span><strong>联网默认开启</strong><small>智能体可搜索和读取公开网络内容，无需在后台逐个授权。</small></span></div>
+     <div><i aria-hidden="true"></i><span><strong>终端跟随桌面端电脑权限</strong><small>用户在桌面端开启电脑权限后，当前智能体才能使用 PowerShell、CMD 与 CLI。</small></span></div>
     </div>
    </div></section>
    <section class="builder-section compact"><div class="section-title"><span>04</span><div><h3>技能与发布</h3><p>选择专属技能，并明确保存后的市场状态</p></div></div><div class="skill-subheading"><strong>专属技能</strong><small>勾选后写入智能体配置</small></div>${agentSkillSelector(agent.skillIds||[])}<div class="publish-settings"><div class="builder-grid"><label class="field">版本<input name="version" value="${esc(version)}" pattern="(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)" required></label><label class="field">版本说明<input name="changelog" maxlength="20000" placeholder="本次更新内容"></label></div><div><div class="skill-subheading"><strong>保存后状态</strong><small>“已上架”会立即对客户端可见</small></div><div class="publish-choices"><label class="draft"><input type="radio" name="status" value="draft"${checked(currentStatus==='draft')}><span><strong>保存为草稿</strong><small>仅后台可见，适合继续编辑</small></span></label><label class="unpublished"><input type="radio" name="status" value="unpublished"${checked(currentStatus==='unpublished')}><span><strong>保持下架</strong><small>客户端市场中隐藏</small></span></label><label class="published"><input type="radio" name="status" value="published"${checked(currentStatus==='published')}><span><strong>直接上架</strong><small>客户端刷新后可见</small></span></label></div></div></div></section>
@@ -289,7 +291,7 @@ $('#dialogRoot').addEventListener('submit',async(event)=>{
    const payload={
     name:data.get('name'),slug:data.get('slug'),category:data.get('category'),summary:data.get('summary'),description:data.get('description'),icon:data.get('icon'),avatar:data.get('avatar'),
     role:data.get('role'),systemPrompt:data.get('systemPrompt'),welcomeMessage:data.get('welcomeMessage'),
-    workspace:{goal:data.get('workspaceGoal'),roleRules:data.get('workspaceRoleRules'),outputDirectory:data.get('outputDirectory'),memoryEnabled:data.has('memoryEnabled'),allowWeb:data.has('allowWeb'),allowFiles:data.has('allowFiles'),allowTerminal:data.has('allowTerminal')},
+     workspace:{goal:data.get('workspaceGoal'),roleRules:data.get('workspaceRoleRules'),outputDirectory:data.get('outputDirectory'),memoryEnabled:data.has('memoryEnabled'),allowWeb:true,allowFiles:data.has('allowFiles'),allowTerminal:true},
     skillIds:data.getAll('skillIds'),version:data.get('version'),status:data.get('status'),changelog:data.get('changelog')
    };
    const id=form.dataset.id;await api(id?`/api/admin/agents/${id}`:'/api/admin/agents',{method:id?'PATCH':'POST',body:JSON.stringify(payload)});
