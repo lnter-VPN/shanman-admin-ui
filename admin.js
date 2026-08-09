@@ -247,10 +247,10 @@ async function openAgentBuilder({id='',clone=false}={}){
 
 const LOGIN_INTERACTION_MODE=Object.freeze({IDLE:'idle',MOUSE_TRACKING:'mouse-tracking',USERNAME_HOVER:'username-hover',USERNAME_FOCUS:'username-focus',PASSWORD_FOCUS:'password-focus'});
 const LOGIN_CHARACTER_CONFIG=Object.freeze({
- violet:{maxEyeX:6,maxEyeY:5,sensitivity:.018,minFollow:.14,baseFollow:.17,maxFollow:.38,velocityFactor:.0045,peekFollow:.32,returnFollow:.17,parallax:3.2,bodyRotate:.7,targetOffset:{x:-2,y:-2},typingTilt:.28},
- charcoal:{maxEyeX:5,maxEyeY:4,sensitivity:.017,minFollow:.13,baseFollow:.16,maxFollow:.35,velocityFactor:.004,peekFollow:.29,returnFollow:.16,parallax:2.3,bodyRotate:.5,targetOffset:{x:4,y:3},typingTilt:-.22},
- orange:{maxEyeX:3.2,maxEyeY:2.8,sensitivity:.015,minFollow:.15,baseFollow:.19,maxFollow:.4,velocityFactor:.0048,peekFollow:.34,returnFollow:.18,parallax:4,bodyRotate:.45,targetOffset:{x:1,y:2},typingTilt:.16},
- yellow:{maxEyeX:3.3,maxEyeY:2.8,sensitivity:.016,minFollow:.14,baseFollow:.18,maxFollow:.37,velocityFactor:.0043,peekFollow:.31,returnFollow:.17,parallax:3.3,bodyRotate:.55,targetOffset:{x:5,y:-1},typingTilt:-.18}
+  violet:{maxEyeX:7.5,maxEyeY:5.5,sensitivity:.018,minFollow:.14,baseFollow:.17,maxFollow:.38,velocityFactor:.0045,peekFollow:.32,returnFollow:.17,parallax:3.2,bodyRotate:6,targetOffset:{x:-2,y:-2},typingTilt:.45},
+  charcoal:{maxEyeX:6.5,maxEyeY:5,sensitivity:.017,minFollow:.13,baseFollow:.16,maxFollow:.35,velocityFactor:.004,peekFollow:.29,returnFollow:.16,parallax:2.3,bodyRotate:5,targetOffset:{x:4,y:3},typingTilt:-.35},
+  orange:{maxEyeX:4,maxEyeY:3.2,sensitivity:.015,minFollow:.15,baseFollow:.19,maxFollow:.4,velocityFactor:.0048,peekFollow:.34,returnFollow:.18,parallax:4,bodyRotate:4,targetOffset:{x:1,y:2},typingTilt:.25},
+  yellow:{maxEyeX:4,maxEyeY:3.2,sensitivity:.016,minFollow:.14,baseFollow:.18,maxFollow:.37,velocityFactor:.0043,peekFollow:.31,returnFollow:.17,parallax:3.3,bodyRotate:4.5,targetOffset:{x:5,y:-1},typingTilt:-.28}
 });
 
 function clampLoginMotion(value,min,max){return Math.min(max,Math.max(min,value))}
