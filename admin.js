@@ -4,6 +4,7 @@ const isGitHubPages=location.hostname.endsWith('.github.io');
 const configuredApiBase=String(globalThis.SHANMAN_API_BASE||'').trim();
 const initialApiBase=localStorage.getItem(API_BASE_KEY)||configuredApiBase||(isGitHubPages?'':location.origin);
 const state={token:sessionStorage.getItem(TOKEN_KEY)||'',user:null,page:'dashboard',apiBase:initialApiBase.replace(/\/$/,''),catalogSkills:[],productFilters:{agents:'active',skills:'active'}};
+let loginCharacterScene;
 const $=(selector)=>document.querySelector(selector);
 const content=$('#content');
 const pageMeta={dashboard:['OVERVIEW','平台概览'],agents:['AGENTS','智能体管理'],skills:['SKILLS','技能管理'],users:['USERS & LICENSES','用户与授权'],audit:['AUDIT & USAGE','操作与统计']};
@@ -31,8 +32,8 @@ async function api(path,options={}){
  return data;
 }
 
-function showLogin(message=''){$('#appView').hidden=true;$('#loginView').hidden=false;$('#loginError').textContent=message}
-function showApp(){$('#loginView').hidden=true;$('#appView').hidden=false;$('#adminIdentity').textContent=state.user?.username||state.user?.email||'管理员';void navigate(state.page)}
+function showLogin(message=''){$('#appView').hidden=true;$('#loginView').hidden=false;$('#loginError').textContent=message;loginCharacterScene?.start()}
+function showApp(){loginCharacterScene?.stop();$('#loginView').hidden=true;$('#appView').hidden=false;$('#adminIdentity').textContent=state.user?.username||state.user?.email||'管理员';void navigate(state.page)}
 function logout(){state.token='';state.user=null;sessionStorage.removeItem(TOKEN_KEY);showLogin()}
 
 async function navigate(page){
@@ -244,6 +245,97 @@ async function openAgentBuilder({id='',clone=false}={}){
  const avatarInput=$('#agentBuilderForm input[name="avatarFile"]');avatarInput?.addEventListener('change',async()=>{const file=avatarInput.files?.[0];if(!file)return;const statusEl=$('#avatarUploadStatus');const hidden=$('#agentBuilderForm input[name="avatar"]');const preview=$('#avatarPreview');if(file.size>3*1024*1024){avatarInput.value='';statusEl.textContent='图片超过 3MB，请压缩后重试';statusEl.classList.add('upload-error');return}if(!['image/png','image/jpeg','image/webp'].includes(file.type)){avatarInput.value='';statusEl.textContent='仅支持 PNG、JPG 或 WEBP';statusEl.classList.add('upload-error');return}statusEl.textContent='正在安全上传…';statusEl.classList.remove('upload-error');const body=new FormData();body.append('avatar',file);try{const result=await api('/api/admin/agents/avatar',{method:'POST',body});hidden.value=result.url;preview.classList.add('has-image');preview.innerHTML=`<img src="${esc(avatarUrl(result.url))}" alt="智能体头像">`;statusEl.textContent='头像已上传，保存智能体后生效';notice('头像上传成功')}catch(error){statusEl.textContent=error.message;statusEl.classList.add('upload-error');notice(error.message,true)}});
 }
 
+const LOGIN_INTERACTION_MODE=Object.freeze({IDLE:'idle',MOUSE_TRACKING:'mouse-tracking',USERNAME_HOVER:'username-hover',USERNAME_FOCUS:'username-focus',PASSWORD_FOCUS:'password-focus'});
+const LOGIN_CHARACTER_CONFIG=Object.freeze({
+ violet:{maxEyeX:6,maxEyeY:5,sensitivity:.018,minFollow:.14,baseFollow:.17,maxFollow:.38,velocityFactor:.0045,peekFollow:.32,returnFollow:.17,parallax:3.2,bodyRotate:.7,targetOffset:{x:-2,y:-2},typingTilt:.28},
+ charcoal:{maxEyeX:5,maxEyeY:4,sensitivity:.017,minFollow:.13,baseFollow:.16,maxFollow:.35,velocityFactor:.004,peekFollow:.29,returnFollow:.16,parallax:2.3,bodyRotate:.5,targetOffset:{x:4,y:3},typingTilt:-.22},
+ orange:{maxEyeX:3.2,maxEyeY:2.8,sensitivity:.015,minFollow:.15,baseFollow:.19,maxFollow:.4,velocityFactor:.0048,peekFollow:.34,returnFollow:.18,parallax:4,bodyRotate:.45,targetOffset:{x:1,y:2},typingTilt:.16},
+ yellow:{maxEyeX:3.3,maxEyeY:2.8,sensitivity:.016,minFollow:.14,baseFollow:.18,maxFollow:.37,velocityFactor:.0043,peekFollow:.31,returnFollow:.17,parallax:3.3,bodyRotate:.55,targetOffset:{x:5,y:-1},typingTilt:-.18}
+});
+
+function clampLoginMotion(value,min,max){return Math.min(max,Math.max(min,value))}
+function computeBoundedGaze(eye,target,config,weight=1){
+ const dx=target.x-eye.x;const dy=target.y-eye.y;const angle=Math.atan2(dy,dx);const strength=Math.min(1,Math.hypot(dx,dy)*config.sensitivity)*weight;
+ return {x:Math.cos(angle)*config.maxEyeX*strength,y:Math.sin(angle)*config.maxEyeY*strength};
+}
+function computeVelocityFollow(mouseSpeed,config){return clampLoginMotion(config.baseFollow+clampLoginMotion(mouseSpeed,0,80)*config.velocityFactor,config.minFollow,config.maxFollow)}
+
+function initLoginCharacterScene(){
+ const scene=document.querySelector('[data-character-scene]');
+ const usernameInput=document.querySelector('[data-login-field="identifier"]');
+ const passwordInput=document.querySelector('[data-login-field="password"]');
+ if(!scene||!usernameInput||!passwordInput)return {start(){},stop(){},destroy(){}};
+ const reducedQuery=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')||{matches:false,addEventListener(){},removeEventListener(){}};
+ const characters=[...scene.querySelectorAll('[data-character]')].map((element)=>{
+  const config=LOGIN_CHARACTER_CONFIG[element.dataset.character];
+  const eyes=[...element.querySelectorAll('[data-eye]')].map((eye)=>({element:eye,pupil:eye.querySelector('.character-pupil'),center:{x:0,y:0},x:0,y:0}));
+  return {element,config,eyes,bodyX:0,bodyY:0,bodyR:0,typingImpulse:0};
+ }).filter((character)=>character.config&&character.eyes.every((eye)=>eye.pupil));
+ let mode=LOGIN_INTERACTION_MODE.IDLE;let usernameFocused=false;let usernameHovered=false;let passwordFocused=false;let pointerInside=false;
+ let sceneRect={left:0,top:0,right:0,width:1,height:1};let usernameRect={left:0,top:0,width:1,height:1};let geometryDirty=true;
+ let targetPointer={x:0,y:0};let sampledPointer={x:0,y:0};let pointerInitialized=false;let smoothSpeed=0;
+ let animationFrame=0;let running=false;let lastFrameTime=0;
+
+ const resolveMode=()=>{
+  if(usernameFocused)return LOGIN_INTERACTION_MODE.USERNAME_FOCUS;
+  if(passwordFocused)return LOGIN_INTERACTION_MODE.PASSWORD_FOCUS;
+  if(usernameHovered)return LOGIN_INTERACTION_MODE.USERNAME_HOVER;
+  if(pointerInside&&!reducedQuery.matches)return LOGIN_INTERACTION_MODE.MOUSE_TRACKING;
+  return LOGIN_INTERACTION_MODE.IDLE;
+ };
+ const updateMode=()=>{const next=resolveMode();if(next===mode)return;mode=next;scene.dataset.interactionMode=mode;if(mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS)geometryDirty=true};
+ const refreshGeometry=()=>{
+  sceneRect=scene.getBoundingClientRect();usernameRect=usernameInput.getBoundingClientRect();
+  for(const character of characters){for(const eye of character.eyes){const rect=eye.element.getBoundingClientRect();eye.center={x:rect.left+rect.width/2,y:rect.top+rect.height/2}}}
+  if(!pointerInitialized){targetPointer={x:sceneRect.left+sceneRect.width*.58,y:sceneRect.top+sceneRect.height*.46};sampledPointer={...targetPointer};pointerInitialized=true}
+  geometryDirty=false;
+ };
+ const gazeTarget=(eye,character)=>{
+  if(mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS||mode===LOGIN_INTERACTION_MODE.USERNAME_HOVER)return {x:usernameRect.left+44+character.config.targetOffset.x,y:usernameRect.top+usernameRect.height/2+character.config.targetOffset.y,weight:mode===LOGIN_INTERACTION_MODE.USERNAME_HOVER?.28:1};
+  if(mode===LOGIN_INTERACTION_MODE.PASSWORD_FOCUS)return {x:eye.center.x-90+character.config.targetOffset.x,y:eye.center.y-58+character.config.targetOffset.y,weight:.68};
+  if(mode===LOGIN_INTERACTION_MODE.MOUSE_TRACKING)return {x:targetPointer.x,y:targetPointer.y,weight:1};
+  return {x:sceneRect.right+80,y:sceneRect.top+sceneRect.height*.43+character.config.targetOffset.y,weight:.42};
+ };
+ const animate=(timestamp)=>{
+  if(!running)return;
+  if(geometryDirty)refreshGeometry();
+  const frameScale=clampLoginMotion((timestamp-(lastFrameTime||timestamp))/16.667,.5,2);lastFrameTime=timestamp;
+  const rawSpeed=Math.hypot(targetPointer.x-sampledPointer.x,targetPointer.y-sampledPointer.y);sampledPointer={...targetPointer};smoothSpeed+=(clampLoginMotion(rawSpeed,0,80)-smoothSpeed)*.2;
+  const normalizedX=clampLoginMotion((targetPointer.x-sceneRect.left)/Math.max(sceneRect.width,1)-.5,-.5,.5);const normalizedY=clampLoginMotion((targetPointer.y-sceneRect.top)/Math.max(sceneRect.height,1)-.5,-.5,.5);
+  for(const character of characters){
+   const config=character.config;let follow=mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS?config.peekFollow:mode===LOGIN_INTERACTION_MODE.IDLE||mode===LOGIN_INTERACTION_MODE.PASSWORD_FOCUS?config.returnFollow:computeVelocityFollow(smoothSpeed,config);
+   if(reducedQuery.matches)follow=1;const effectiveFollow=1-Math.pow(1-follow,frameScale);
+   for(const eye of character.eyes){const target=gazeTarget(eye,character);const gaze=computeBoundedGaze(eye.center,target,config,target.weight);eye.x+=(gaze.x-eye.x)*effectiveFollow;eye.y+=(gaze.y-eye.y)*effectiveFollow;eye.pupil.style.setProperty('--eye-x',`${eye.x.toFixed(2)}px`);eye.pupil.style.setProperty('--eye-y',`${eye.y.toFixed(2)}px`)}
+   const tracking=mode===LOGIN_INTERACTION_MODE.MOUSE_TRACKING&&!reducedQuery.matches;const targetBodyX=tracking?normalizedX*config.parallax*2:0;const targetBodyY=tracking?normalizedY*config.parallax*2:0;const targetBodyR=tracking?normalizedX*config.bodyRotate*2:0;
+   const bodyFollow=1-Math.pow(.9,frameScale);character.bodyX+=(targetBodyX-character.bodyX)*bodyFollow;character.bodyY+=(targetBodyY-character.bodyY)*bodyFollow;character.bodyR+=(targetBodyR-character.bodyR)*bodyFollow;character.typingImpulse*=Math.pow(.82,frameScale);
+   character.element.style.setProperty('--body-x',`${character.bodyX.toFixed(2)}px`);character.element.style.setProperty('--body-y',`${character.bodyY.toFixed(2)}px`);character.element.style.setProperty('--body-r',`${character.bodyR.toFixed(3)}deg`);character.element.style.setProperty('--typing-r',`${(character.typingImpulse*config.typingTilt).toFixed(3)}deg`);
+  }
+  animationFrame=requestAnimationFrame(animate);
+ };
+ const onPointerMove=(event)=>{targetPointer={x:event.clientX,y:event.clientY};pointerInitialized=true};
+ const onPointerEnter=()=>{pointerInside=true;updateMode()};
+ const onPointerLeave=()=>{pointerInside=false;updateMode()};
+ const onUsernameEnter=()=>{usernameHovered=true;updateMode()};
+ const onUsernameLeave=()=>{usernameHovered=false;updateMode()};
+ const onUsernameFocus=()=>{usernameFocused=true;passwordFocused=false;geometryDirty=true;updateMode()};
+ const onUsernameBlur=()=>{usernameFocused=false;updateMode()};
+ const onUsernameInput=()=>{if(usernameFocused)for(const character of characters)character.typingImpulse=1};
+ const onPasswordFocus=()=>{passwordFocused=true;usernameFocused=false;updateMode()};
+ const onPasswordBlur=()=>{passwordFocused=false;updateMode()};
+ const onLayoutChange=()=>{geometryDirty=true};
+ const onReducedMotionChange=()=>{geometryDirty=true;updateMode()};
+ scene.addEventListener('pointermove',onPointerMove,{passive:true});scene.addEventListener('pointerenter',onPointerEnter,{passive:true});scene.addEventListener('pointerleave',onPointerLeave,{passive:true});
+ usernameInput.addEventListener('mouseenter',onUsernameEnter);usernameInput.addEventListener('mouseleave',onUsernameLeave);usernameInput.addEventListener('focus',onUsernameFocus);usernameInput.addEventListener('blur',onUsernameBlur);usernameInput.addEventListener('input',onUsernameInput);
+ passwordInput.addEventListener('focus',onPasswordFocus);passwordInput.addEventListener('blur',onPasswordBlur);window.addEventListener('resize',onLayoutChange,{passive:true});reducedQuery.addEventListener('change',onReducedMotionChange);
+ const resizeObserver=globalThis.ResizeObserver?new ResizeObserver(onLayoutChange):null;resizeObserver?.observe(scene);resizeObserver?.observe(usernameInput);
+ const controller={
+  start(){if(running)return;running=true;lastFrameTime=0;geometryDirty=true;animationFrame=requestAnimationFrame(animate)},
+  stop(){running=false;if(animationFrame)cancelAnimationFrame(animationFrame);animationFrame=0},
+  destroy(){this.stop();resizeObserver?.disconnect();scene.removeEventListener('pointermove',onPointerMove);scene.removeEventListener('pointerenter',onPointerEnter);scene.removeEventListener('pointerleave',onPointerLeave);usernameInput.removeEventListener('mouseenter',onUsernameEnter);usernameInput.removeEventListener('mouseleave',onUsernameLeave);usernameInput.removeEventListener('focus',onUsernameFocus);usernameInput.removeEventListener('blur',onUsernameBlur);usernameInput.removeEventListener('input',onUsernameInput);passwordInput.removeEventListener('focus',onPasswordFocus);passwordInput.removeEventListener('blur',onPasswordBlur);window.removeEventListener('resize',onLayoutChange);reducedQuery.removeEventListener('change',onReducedMotionChange)}
+ };
+ window.addEventListener('pagehide',()=>controller.destroy(),{once:true});return controller;
+}
+
 function normalizeApiBase(value){
  const raw=String(value||'').trim().replace(/\/$/,'');if(!raw)return '';
  let parsed;try{parsed=new URL(raw)}catch{throw new Error('请输入完整的后台地址，例如 https://api.example.com')}
@@ -255,8 +347,12 @@ function normalizeApiBase(value){
 const apiBaseField=$('#apiBaseField');const apiBaseInput=$('#apiBaseInput');
 if(!state.apiBase)apiBaseField.hidden=false;
 apiBaseInput.value=state.apiBase;
+loginCharacterScene=initLoginCharacterScene();
 
-$('#loginForm').addEventListener('submit',async(event)=>{event.preventDefault();$('#loginError').textContent='';const form=new FormData(event.currentTarget);try{const nextApiBase=normalizeApiBase(form.get('apiBase')||state.apiBase);if(nextApiBase!==state.apiBase){state.apiBase=nextApiBase;state.token='';sessionStorage.removeItem(TOKEN_KEY);if(nextApiBase)localStorage.setItem(API_BASE_KEY,nextApiBase);else localStorage.removeItem(API_BASE_KEY)}const data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({identifier:form.get('identifier'),password:form.get('password')})});if(data.user?.role!=='admin')throw new Error('该账号不是管理员');state.token=data.token;state.user=data.user;sessionStorage.setItem(TOKEN_KEY,data.token);showApp()}catch(error){$('#loginError').textContent=error.message}});
+$('#loginForm').addEventListener('submit',async(event)=>{
+ event.preventDefault();const formElement=event.currentTarget;const form=new FormData(formElement);const submit=formElement.querySelector('[data-login-submit]');const original=submit.innerHTML;$('#loginError').textContent='';submit.disabled=true;submit.setAttribute('aria-busy','true');submit.textContent='正在安全登录…';
+ try{const nextApiBase=normalizeApiBase(form.get('apiBase')||state.apiBase);if(nextApiBase!==state.apiBase){state.apiBase=nextApiBase;state.token='';sessionStorage.removeItem(TOKEN_KEY);if(nextApiBase)localStorage.setItem(API_BASE_KEY,nextApiBase);else localStorage.removeItem(API_BASE_KEY)}const data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({identifier:form.get('identifier'),password:form.get('password')})});if(data.user?.role!=='admin')throw new Error('该账号不是管理员');state.token=data.token;state.user=data.user;sessionStorage.setItem(TOKEN_KEY,data.token);showApp()}catch(error){$('#loginError').textContent=error.message}finally{submit.disabled=false;submit.removeAttribute('aria-busy');submit.innerHTML=original}
+});
 $('#navigation').addEventListener('click',(event)=>{const button=event.target.closest('[data-page]');if(button)void navigate(button.dataset.page)});
 $('#logoutButton').addEventListener('click',logout);$('#refreshButton').addEventListener('click',()=>void navigate(state.page));$('#menuButton').addEventListener('click',()=>$('.sidebar').classList.toggle('open'));
 

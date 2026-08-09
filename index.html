@@ -4,48 +4,64 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>闪漫 AI 管理后台</title>
-  <link rel="stylesheet" href="./admin.css?v=20260804-029">
+  <link rel="stylesheet" href="./admin.css?v=20260809-031">
 </head>
 <body>
-  <section id="loginView" class="login-shell">
+  <section id="loginView" class="login-shell" data-login-shell>
     <div class="login-stage">
-      <section class="login-showcase" aria-label="闪漫 AI 智能体团队">
-        <div class="showcase-glow glow-one"></div>
-        <div class="showcase-glow glow-two"></div>
+      <section class="login-showcase" aria-label="闪漫视界几何角色互动区" data-character-scene data-interaction-mode="idle">
         <div class="showcase-brand">
-          <span class="showcase-logo">闪</span>
-          <span><strong>闪漫 AI</strong><small>智能体管理平台</small></span>
+          <span class="showcase-logo" aria-hidden="true"><i></i></span>
+          <strong>ShanManShijie</strong>
         </div>
-        <div class="showcase-copy">
-          <p class="showcase-kicker">YOUR AI WORKFORCE</p>
-          <h2>让每一位智能体<br>成为团队的一员</h2>
-          <p>集中制作智能体、配置专属技能与工作区，让数字团队持续为业务创造价值。</p>
+        <div class="character-cluster" data-character-cluster aria-hidden="true">
+          <div class="character character-violet" data-character="violet">
+            <div class="character-body" data-character-body>
+              <div class="character-face">
+                <span class="character-eye" data-eye="left"><i class="character-pupil"></i></span>
+                <span class="character-eye" data-eye="right"><i class="character-pupil"></i></span>
+              </div>
+            </div>
+          </div>
+          <div class="character character-charcoal" data-character="charcoal">
+            <div class="character-body" data-character-body>
+              <div class="character-face">
+                <span class="character-eye" data-eye="left"><i class="character-pupil"></i></span>
+                <span class="character-eye" data-eye="right"><i class="character-pupil"></i></span>
+              </div>
+            </div>
+          </div>
+          <div class="character character-orange" data-character="orange">
+            <div class="character-body" data-character-body>
+              <div class="character-face">
+                <span class="character-eye dot-eye" data-eye="left"><i class="character-pupil"></i></span>
+                <span class="character-eye dot-eye" data-eye="right"><i class="character-pupil"></i></span>
+              </div>
+            </div>
+          </div>
+          <div class="character character-yellow" data-character="yellow">
+            <div class="character-body" data-character-body>
+              <div class="character-face">
+                <span class="character-eye dot-eye" data-eye="left"><i class="character-pupil"></i></span>
+                <span class="character-eye dot-eye" data-eye="right"><i class="character-pupil"></i></span>
+                <span class="character-mouth"></span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="team-portrait" aria-hidden="true">
-          <span class="portrait portrait-1"><img src="./assets/team-1.png" alt=""></span>
-          <span class="portrait portrait-2"><img src="./assets/team-2.png" alt=""></span>
-          <span class="portrait portrait-3"><img src="./assets/team-3.png" alt=""></span>
-          <span class="portrait portrait-4"><img src="./assets/team-4.png" alt=""></span>
-          <span class="portrait portrait-5"><img src="./assets/team-5.png" alt=""></span>
-          <span class="portrait portrait-6"><img src="./assets/team-6.png" alt=""></span>
-          <span class="portrait portrait-7"><img src="./assets/team-7.png" alt=""></span>
-          <span class="portrait portrait-8"><img src="./assets/team-8.png" alt=""></span>
-          <span class="team-core"><i></i><strong>AI</strong><small>TEAM</small></span>
-        </div>
-        <div class="showcase-tags"><span>智能体制作</span><span>技能编排</span><span>工作区配置</span></div>
+        <p class="scene-caption">智能体制作&nbsp;&nbsp;·&nbsp;&nbsp;技能编排&nbsp;&nbsp;·&nbsp;&nbsp;工作区配置</p>
       </section>
 
-      <form id="loginForm" class="login-card">
+      <form id="loginForm" class="login-card" data-login-form>
         <div class="login-heading">
-          <div class="brand-mark">闪</div>
           <p class="eyebrow">SHANMAN CONTROL</p>
-          <h1>欢迎回来</h1>
-          <p class="muted">登录管理后台，继续打造你的 AI 团队</p>
+          <h1>欢迎回来！</h1>
+          <p class="muted">请输入管理员账号与密码</p>
         </div>
-        <label>账号或邮箱<input name="identifier" autocomplete="username" placeholder="请输入管理员账号" required></label>
-        <label>密码<input name="password" type="password" autocomplete="current-password" placeholder="请输入登录密码" required></label>
+        <label for="adminIdentifier">账号或邮箱<input id="adminIdentifier" name="identifier" autocomplete="username" placeholder="请输入管理员账号" data-login-field="identifier" required></label>
+        <label for="adminPassword">密码<input id="adminPassword" name="password" type="password" autocomplete="current-password" placeholder="请输入登录密码" data-login-field="password" required></label>
         <label id="apiBaseField" hidden>后台 API 地址<input id="apiBaseInput" name="apiBase" type="url" inputmode="url" autocomplete="url" placeholder="https://api.example.com"></label>
-        <button class="primary wide login-submit" type="submit">登录管理后台 <span>→</span></button>
+        <button class="primary wide login-submit" type="submit" data-login-submit>登录管理后台 <span aria-hidden="true">→</span></button>
         <p id="loginError" class="error" role="alert"></p>
         <p class="login-footnote"><span></span> 安全加密连接</p>
       </form>
@@ -72,6 +88,6 @@
   </div>
   <div id="dialogRoot"></div>
   <script src="./config.js?v=20260803-028"></script>
-  <script src="./admin.js?v=20260804-030" defer></script>
+  <script src="./admin.js?v=20260809-031" defer></script>
 </body>
 </html>
