@@ -247,10 +247,10 @@ async function openAgentBuilder({id='',clone=false}={}){
 
 const LOGIN_INTERACTION_MODE=Object.freeze({IDLE:'idle',MOUSE_TRACKING:'mouse-tracking',USERNAME_HOVER:'username-hover',USERNAME_FOCUS:'username-focus',PASSWORD_FOCUS:'password-focus'});
 const LOGIN_CHARACTER_CONFIG=Object.freeze({
-  violet:{maxEyeX:7.5,maxEyeY:5.5,sensitivity:.018,minFollow:.14,baseFollow:.17,maxFollow:.38,velocityFactor:.0045,peekFollow:.32,returnFollow:.17,parallax:3.2,bodyRotate:6,targetOffset:{x:-2,y:-2},typingTilt:.45},
-  charcoal:{maxEyeX:6.5,maxEyeY:5,sensitivity:.017,minFollow:.13,baseFollow:.16,maxFollow:.35,velocityFactor:.004,peekFollow:.29,returnFollow:.16,parallax:2.3,bodyRotate:5,targetOffset:{x:4,y:3},typingTilt:-.35},
-  orange:{maxEyeX:4,maxEyeY:3.2,sensitivity:.015,minFollow:.15,baseFollow:.19,maxFollow:.4,velocityFactor:.0048,peekFollow:.34,returnFollow:.18,parallax:4,bodyRotate:4,targetOffset:{x:1,y:2},typingTilt:.25},
-  yellow:{maxEyeX:4,maxEyeY:3.2,sensitivity:.016,minFollow:.14,baseFollow:.18,maxFollow:.37,velocityFactor:.0043,peekFollow:.31,returnFollow:.17,parallax:3.3,bodyRotate:4.5,targetOffset:{x:5,y:-1},typingTilt:-.28}
+  violet:{maxEyeX:7.5,maxEyeY:5.5,sensitivity:.018,minFollow:.14,baseFollow:.17,maxFollow:.38,velocityFactor:.0045,peekFollow:.34,returnFollow:.17,parallax:3.2,bodyRotate:6,targetOffset:{x:-2,y:-2},typingTilt:.45},
+  charcoal:{maxEyeX:6.5,maxEyeY:5,sensitivity:.017,minFollow:.08,baseFollow:.16,maxFollow:.35,velocityFactor:.004,peekFollow:.09,returnFollow:.16,parallax:2.3,bodyRotate:5,targetOffset:{x:4,y:3},typingTilt:-.35},
+  orange:{maxEyeX:4,maxEyeY:3.2,sensitivity:.015,minFollow:.14,baseFollow:.19,maxFollow:.4,velocityFactor:.0048,peekFollow:.16,returnFollow:.18,parallax:4,bodyRotate:4,targetOffset:{x:1,y:2},typingTilt:.25},
+  yellow:{maxEyeX:4,maxEyeY:3.2,sensitivity:.016,minFollow:.13,baseFollow:.18,maxFollow:.37,velocityFactor:.0043,peekFollow:.14,returnFollow:.17,parallax:3.3,bodyRotate:4.5,targetOffset:{x:5,y:-1},typingTilt:-.28}
 });
 
 function clampLoginMotion(value,min,max){return Math.min(max,Math.max(min,value))}
@@ -274,7 +274,10 @@ function initLoginCharacterScene(){
  let mode=LOGIN_INTERACTION_MODE.IDLE;let usernameFocused=false;let usernameHovered=false;let passwordFocused=false;let pointerInside=false;
  let sceneRect={left:0,top:0,right:0,width:1,height:1};let usernameRect={left:0,top:0,width:1,height:1};let geometryDirty=true;
  let targetPointer={x:0,y:0};let sampledPointer={x:0,y:0};let pointerInitialized=false;let smoothSpeed=0;
- let animationFrame=0;let running=false;let lastFrameTime=0;
+  let animationFrame=0;let running=false;let lastFrameTime=0;let usernameFocusStartedAt=0;
+ const entryAnimations=new Set(['shanman-entry-charcoal','shanman-entry-yellow','shanman-entry-violet','shanman-entry-orange']);
+ const completedEntryAnimations=new Set();
+ scene.dataset.intro=reducedQuery.matches?'complete':'running';
 
  const resolveMode=()=>{
   if(usernameFocused)return LOGIN_INTERACTION_MODE.USERNAME_FOCUS;
@@ -290,8 +293,20 @@ function initLoginCharacterScene(){
   if(!pointerInitialized){targetPointer={x:sceneRect.left+sceneRect.width*.58,y:sceneRect.top+sceneRect.height*.46};sampledPointer={...targetPointer};pointerInitialized=true}
   geometryDirty=false;
  };
- const gazeTarget=(eye,character)=>{
-  if(mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS||mode===LOGIN_INTERACTION_MODE.USERNAME_HOVER)return {x:usernameRect.left+44+character.config.targetOffset.x,y:usernameRect.top+usernameRect.height/2+character.config.targetOffset.y,weight:mode===LOGIN_INTERACTION_MODE.USERNAME_HOVER?.28:1};
+  const characterLookPoint=(key)=>{
+   const match=characters.find((candidate)=>candidate.element.dataset.character===key);
+   if(!match?.eyes.length)return {x:usernameRect.left+44,y:usernameRect.top+usernameRect.height/2};
+   return {x:match.eyes.reduce((sum,item)=>sum+item.center.x,0)/match.eyes.length,y:match.eyes.reduce((sum,item)=>sum+item.center.y,0)/match.eyes.length};
+  };
+  const gazeTarget=(eye,character,timestamp)=>{
+   if(mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS){
+    const elapsed=Math.max(0,timestamp-usernameFocusStartedAt);const key=character.element.dataset.character;
+    if(elapsed<230&&key==='violet')return {...characterLookPoint('charcoal'),weight:1};
+    if(elapsed<430&&key==='charcoal')return {...characterLookPoint('violet'),weight:1};
+    const weight=elapsed<430&&(key==='orange'||key==='yellow') ? .48 : 1;
+    return {x:usernameRect.left+44+character.config.targetOffset.x,y:usernameRect.top+usernameRect.height/2+character.config.targetOffset.y,weight};
+   }
+   if(mode===LOGIN_INTERACTION_MODE.USERNAME_HOVER)return {x:usernameRect.left+44+character.config.targetOffset.x,y:usernameRect.top+usernameRect.height/2+character.config.targetOffset.y,weight:.28};
   if(mode===LOGIN_INTERACTION_MODE.PASSWORD_FOCUS)return {x:eye.center.x-90+character.config.targetOffset.x,y:eye.center.y-58+character.config.targetOffset.y,weight:.68};
   if(mode===LOGIN_INTERACTION_MODE.MOUSE_TRACKING)return {x:targetPointer.x,y:targetPointer.y,weight:1};
   return {x:sceneRect.right+80,y:sceneRect.top+sceneRect.height*.43+character.config.targetOffset.y,weight:.42};
@@ -305,7 +320,7 @@ function initLoginCharacterScene(){
   for(const character of characters){
    const config=character.config;let follow=mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS?config.peekFollow:mode===LOGIN_INTERACTION_MODE.IDLE||mode===LOGIN_INTERACTION_MODE.PASSWORD_FOCUS?config.returnFollow:computeVelocityFollow(smoothSpeed,config);
    if(reducedQuery.matches)follow=1;const effectiveFollow=1-Math.pow(1-follow,frameScale);
-   for(const eye of character.eyes){const target=gazeTarget(eye,character);const gaze=computeBoundedGaze(eye.center,target,config,target.weight);eye.x+=(gaze.x-eye.x)*effectiveFollow;eye.y+=(gaze.y-eye.y)*effectiveFollow;eye.pupil.style.setProperty('--eye-x',`${eye.x.toFixed(2)}px`);eye.pupil.style.setProperty('--eye-y',`${eye.y.toFixed(2)}px`)}
+    for(const eye of character.eyes){const target=gazeTarget(eye,character,timestamp);const gaze=computeBoundedGaze(eye.center,target,config,target.weight);eye.x+=(gaze.x-eye.x)*effectiveFollow;eye.y+=(gaze.y-eye.y)*effectiveFollow;eye.pupil.style.setProperty('--eye-x',`${eye.x.toFixed(2)}px`);eye.pupil.style.setProperty('--eye-y',`${eye.y.toFixed(2)}px`)}
    const tracking=mode===LOGIN_INTERACTION_MODE.MOUSE_TRACKING&&!reducedQuery.matches;const targetBodyX=tracking?normalizedX*config.parallax*2:0;const targetBodyY=tracking?normalizedY*config.parallax*2:0;const targetBodyR=tracking?normalizedX*config.bodyRotate*2:0;
    const bodyFollow=1-Math.pow(.9,frameScale);character.bodyX+=(targetBodyX-character.bodyX)*bodyFollow;character.bodyY+=(targetBodyY-character.bodyY)*bodyFollow;character.bodyR+=(targetBodyR-character.bodyR)*bodyFollow;character.typingImpulse*=Math.pow(.82,frameScale);
    character.element.style.setProperty('--body-x',`${character.bodyX.toFixed(2)}px`);character.element.style.setProperty('--body-y',`${character.bodyY.toFixed(2)}px`);character.element.style.setProperty('--body-r',`${character.bodyR.toFixed(3)}deg`);character.element.style.setProperty('--typing-r',`${(character.typingImpulse*config.typingTilt).toFixed(3)}deg`);
@@ -317,21 +332,23 @@ function initLoginCharacterScene(){
  const onPointerLeave=()=>{pointerInside=false;updateMode()};
  const onUsernameEnter=()=>{usernameHovered=true;updateMode()};
  const onUsernameLeave=()=>{usernameHovered=false;updateMode()};
- const onUsernameFocus=()=>{usernameFocused=true;passwordFocused=false;geometryDirty=true;updateMode()};
+  const onUsernameFocus=()=>{usernameFocused=true;passwordFocused=false;usernameFocusStartedAt=performance.now();geometryDirty=true;updateMode()};
  const onUsernameBlur=()=>{usernameFocused=false;updateMode()};
  const onUsernameInput=()=>{if(usernameFocused)for(const character of characters)character.typingImpulse=1};
  const onPasswordFocus=()=>{passwordFocused=true;usernameFocused=false;updateMode()};
  const onPasswordBlur=()=>{passwordFocused=false;updateMode()};
  const onLayoutChange=()=>{geometryDirty=true};
- const onReducedMotionChange=()=>{geometryDirty=true;updateMode()};
+ const onEntryAnimationEnd=(event)=>{if(!entryAnimations.has(event.animationName)||!event.target?.matches?.('[data-character]'))return;completedEntryAnimations.add(event.animationName);geometryDirty=true;if(completedEntryAnimations.size===entryAnimations.size)scene.dataset.intro='complete'};
+ const onReducedMotionChange=()=>{geometryDirty=true;scene.dataset.intro=reducedQuery.matches?'complete':scene.dataset.intro;updateMode()};
  scene.addEventListener('pointermove',onPointerMove,{passive:true});scene.addEventListener('pointerenter',onPointerEnter,{passive:true});scene.addEventListener('pointerleave',onPointerLeave,{passive:true});
+ scene.addEventListener('animationend',onEntryAnimationEnd);
  usernameInput.addEventListener('mouseenter',onUsernameEnter);usernameInput.addEventListener('mouseleave',onUsernameLeave);usernameInput.addEventListener('focus',onUsernameFocus);usernameInput.addEventListener('blur',onUsernameBlur);usernameInput.addEventListener('input',onUsernameInput);
  passwordInput.addEventListener('focus',onPasswordFocus);passwordInput.addEventListener('blur',onPasswordBlur);window.addEventListener('resize',onLayoutChange,{passive:true});reducedQuery.addEventListener('change',onReducedMotionChange);
  const resizeObserver=globalThis.ResizeObserver?new ResizeObserver(onLayoutChange):null;resizeObserver?.observe(scene);resizeObserver?.observe(usernameInput);
  const controller={
   start(){if(running)return;running=true;lastFrameTime=0;geometryDirty=true;animationFrame=requestAnimationFrame(animate)},
   stop(){running=false;if(animationFrame)cancelAnimationFrame(animationFrame);animationFrame=0},
-  destroy(){this.stop();resizeObserver?.disconnect();scene.removeEventListener('pointermove',onPointerMove);scene.removeEventListener('pointerenter',onPointerEnter);scene.removeEventListener('pointerleave',onPointerLeave);usernameInput.removeEventListener('mouseenter',onUsernameEnter);usernameInput.removeEventListener('mouseleave',onUsernameLeave);usernameInput.removeEventListener('focus',onUsernameFocus);usernameInput.removeEventListener('blur',onUsernameBlur);usernameInput.removeEventListener('input',onUsernameInput);passwordInput.removeEventListener('focus',onPasswordFocus);passwordInput.removeEventListener('blur',onPasswordBlur);window.removeEventListener('resize',onLayoutChange);reducedQuery.removeEventListener('change',onReducedMotionChange)}
+  destroy(){this.stop();resizeObserver?.disconnect();scene.removeEventListener('pointermove',onPointerMove);scene.removeEventListener('pointerenter',onPointerEnter);scene.removeEventListener('pointerleave',onPointerLeave);scene.removeEventListener('animationend',onEntryAnimationEnd);usernameInput.removeEventListener('mouseenter',onUsernameEnter);usernameInput.removeEventListener('mouseleave',onUsernameLeave);usernameInput.removeEventListener('focus',onUsernameFocus);usernameInput.removeEventListener('blur',onUsernameBlur);usernameInput.removeEventListener('input',onUsernameInput);passwordInput.removeEventListener('focus',onPasswordFocus);passwordInput.removeEventListener('blur',onPasswordBlur);window.removeEventListener('resize',onLayoutChange);reducedQuery.removeEventListener('change',onReducedMotionChange)}
  };
  window.addEventListener('pagehide',()=>controller.destroy(),{once:true});return controller;
 }
