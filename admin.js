@@ -269,15 +269,18 @@ function initLoginCharacterScene(){
  const characters=[...scene.querySelectorAll('[data-character]')].map((element)=>{
   const config=LOGIN_CHARACTER_CONFIG[element.dataset.character];
   const eyes=[...element.querySelectorAll('[data-eye]')].map((eye)=>({element:eye,pupil:eye.querySelector('.character-pupil'),center:{x:0,y:0},x:0,y:0}));
-  return {element,config,eyes,bodyX:0,bodyY:0,bodyR:0,typingImpulse:0};
- }).filter((character)=>character.config&&character.eyes.every((eye)=>eye.pupil));
+  const motion=element.querySelector('[data-character-motion]');
+  return {element,motion,config,eyes,bodyX:0,bodyY:0,bodyR:0,typingImpulse:0};
+ }).filter((character)=>character.motion&&character.config&&character.eyes.every((eye)=>eye.pupil));
  let mode=LOGIN_INTERACTION_MODE.IDLE;let usernameFocused=false;let usernameHovered=false;let passwordFocused=false;let pointerInside=false;
  let sceneRect={left:0,top:0,right:0,width:1,height:1};let usernameRect={left:0,top:0,width:1,height:1};let geometryDirty=true;
  let targetPointer={x:0,y:0};let sampledPointer={x:0,y:0};let pointerInitialized=false;let smoothSpeed=0;
-  let animationFrame=0;let running=false;let lastFrameTime=0;let usernameFocusStartedAt=0;
- const entryAnimations=new Set(['shanman-entry-charcoal','shanman-entry-yellow','shanman-entry-violet','shanman-entry-orange']);
- const completedEntryAnimations=new Set();
+ let animationFrame=0;let running=false;let lastFrameTime=0;let usernameFocusStartedAt=0;let focusPhase='idle';
+ const entryAnimations=new Set(['shanman-entry-charcoal-smooth','shanman-entry-yellow-smooth','shanman-entry-violet-smooth','shanman-entry-orange-smooth']);
+ const entryElements=[...scene.querySelectorAll('[data-character-entry]')];
  scene.dataset.intro=reducedQuery.matches?'complete':'running';
+ scene.dataset.focusPhase='idle';
+ if(reducedQuery.matches)for(const entry of entryElements)entry.dataset.entryComplete='true';
 
  const resolveMode=()=>{
   if(usernameFocused)return LOGIN_INTERACTION_MODE.USERNAME_FOCUS;
@@ -286,7 +289,13 @@ function initLoginCharacterScene(){
   if(pointerInside&&!reducedQuery.matches)return LOGIN_INTERACTION_MODE.MOUSE_TRACKING;
   return LOGIN_INTERACTION_MODE.IDLE;
  };
- const updateMode=()=>{const next=resolveMode();if(next===mode)return;mode=next;scene.dataset.interactionMode=mode;if(mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS)geometryDirty=true};
+ const setFocusPhase=(next)=>{if(next===focusPhase)return;focusPhase=next;scene.dataset.focusPhase=next};
+ const updateMode=()=>{const next=resolveMode();if(next===mode)return;mode=next;scene.dataset.interactionMode=mode;if(mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS)geometryDirty=true;else setFocusPhase('idle')};
+ const updateFocusPhase=(timestamp)=>{
+  if(mode!==LOGIN_INTERACTION_MODE.USERNAME_FOCUS){setFocusPhase('idle');return}
+  const elapsed=Math.max(0,timestamp-usernameFocusStartedAt);
+  setFocusPhase(elapsed<220?'violet-check':elapsed<480?'charcoal-reply':'field-lock');
+ };
  const refreshGeometry=()=>{
   sceneRect=scene.getBoundingClientRect();usernameRect=usernameInput.getBoundingClientRect();
   for(const character of characters){for(const eye of character.eyes){const rect=eye.element.getBoundingClientRect();eye.center={x:rect.left+rect.width/2,y:rect.top+rect.height/2}}}
@@ -298,12 +307,12 @@ function initLoginCharacterScene(){
    if(!match?.eyes.length)return {x:usernameRect.left+44,y:usernameRect.top+usernameRect.height/2};
    return {x:match.eyes.reduce((sum,item)=>sum+item.center.x,0)/match.eyes.length,y:match.eyes.reduce((sum,item)=>sum+item.center.y,0)/match.eyes.length};
   };
-  const gazeTarget=(eye,character,timestamp)=>{
+  const gazeTarget=(eye,character)=>{
    if(mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS){
-    const elapsed=Math.max(0,timestamp-usernameFocusStartedAt);const key=character.element.dataset.character;
-    if(elapsed<230&&key==='violet')return {...characterLookPoint('charcoal'),weight:1};
-    if(elapsed<430&&key==='charcoal')return {...characterLookPoint('violet'),weight:1};
-    const weight=elapsed<430&&(key==='orange'||key==='yellow') ? .48 : 1;
+    const key=character.element.dataset.character;
+    if(focusPhase==='violet-check'&&key==='violet')return {...characterLookPoint('charcoal'),weight:1};
+    if(focusPhase==='charcoal-reply'&&(key==='violet'||key==='charcoal'))return {...characterLookPoint(key==='violet'?'charcoal':'violet'),weight:1};
+    const weight=focusPhase!=='field-lock'&&(key==='orange'||key==='yellow') ? .48 : 1;
     return {x:usernameRect.left+44+character.config.targetOffset.x,y:usernameRect.top+usernameRect.height/2+character.config.targetOffset.y,weight};
    }
    if(mode===LOGIN_INTERACTION_MODE.USERNAME_HOVER)return {x:usernameRect.left+44+character.config.targetOffset.x,y:usernameRect.top+usernameRect.height/2+character.config.targetOffset.y,weight:.28};
@@ -313,6 +322,8 @@ function initLoginCharacterScene(){
  };
  const animate=(timestamp)=>{
   if(!running)return;
+  updateFocusPhase(timestamp);
+  if(scene.dataset.intro!=='complete'){lastFrameTime=timestamp;animationFrame=requestAnimationFrame(animate);return}
   if(geometryDirty)refreshGeometry();
   const frameScale=clampLoginMotion((timestamp-(lastFrameTime||timestamp))/16.667,.5,2);lastFrameTime=timestamp;
   const rawSpeed=Math.hypot(targetPointer.x-sampledPointer.x,targetPointer.y-sampledPointer.y);sampledPointer={...targetPointer};smoothSpeed+=(clampLoginMotion(rawSpeed,0,80)-smoothSpeed)*.2;
@@ -320,10 +331,10 @@ function initLoginCharacterScene(){
   for(const character of characters){
    const config=character.config;let follow=mode===LOGIN_INTERACTION_MODE.USERNAME_FOCUS?config.peekFollow:mode===LOGIN_INTERACTION_MODE.IDLE||mode===LOGIN_INTERACTION_MODE.PASSWORD_FOCUS?config.returnFollow:computeVelocityFollow(smoothSpeed,config);
    if(reducedQuery.matches)follow=1;const effectiveFollow=1-Math.pow(1-follow,frameScale);
-    for(const eye of character.eyes){const target=gazeTarget(eye,character,timestamp);const gaze=computeBoundedGaze(eye.center,target,config,target.weight);eye.x+=(gaze.x-eye.x)*effectiveFollow;eye.y+=(gaze.y-eye.y)*effectiveFollow;eye.pupil.style.setProperty('--eye-x',`${eye.x.toFixed(2)}px`);eye.pupil.style.setProperty('--eye-y',`${eye.y.toFixed(2)}px`)}
+    for(const eye of character.eyes){const target=gazeTarget(eye,character);const gaze=computeBoundedGaze(eye.center,target,config,target.weight);eye.x+=(gaze.x-eye.x)*effectiveFollow;eye.y+=(gaze.y-eye.y)*effectiveFollow;eye.pupil.style.setProperty('--eye-x',`${eye.x.toFixed(2)}px`);eye.pupil.style.setProperty('--eye-y',`${eye.y.toFixed(2)}px`)}
    const tracking=mode===LOGIN_INTERACTION_MODE.MOUSE_TRACKING&&!reducedQuery.matches;const targetBodyX=tracking?normalizedX*config.parallax*2:0;const targetBodyY=tracking?normalizedY*config.parallax*2:0;const targetBodyR=tracking?normalizedX*config.bodyRotate*2:0;
    const bodyFollow=1-Math.pow(.9,frameScale);character.bodyX+=(targetBodyX-character.bodyX)*bodyFollow;character.bodyY+=(targetBodyY-character.bodyY)*bodyFollow;character.bodyR+=(targetBodyR-character.bodyR)*bodyFollow;character.typingImpulse*=Math.pow(.82,frameScale);
-   character.element.style.setProperty('--body-x',`${character.bodyX.toFixed(2)}px`);character.element.style.setProperty('--body-y',`${character.bodyY.toFixed(2)}px`);character.element.style.setProperty('--body-r',`${character.bodyR.toFixed(3)}deg`);character.element.style.setProperty('--typing-r',`${(character.typingImpulse*config.typingTilt).toFixed(3)}deg`);
+   character.motion.style.setProperty('--body-x',`${character.bodyX.toFixed(2)}px`);character.motion.style.setProperty('--body-y',`${character.bodyY.toFixed(2)}px`);character.motion.style.setProperty('--body-r',`${character.bodyR.toFixed(3)}deg`);character.motion.style.setProperty('--typing-r',`${(character.typingImpulse*config.typingTilt).toFixed(3)}deg`);
   }
   animationFrame=requestAnimationFrame(animate);
  };
@@ -332,14 +343,14 @@ function initLoginCharacterScene(){
  const onPointerLeave=()=>{pointerInside=false;updateMode()};
  const onUsernameEnter=()=>{usernameHovered=true;updateMode()};
  const onUsernameLeave=()=>{usernameHovered=false;updateMode()};
-  const onUsernameFocus=()=>{usernameFocused=true;passwordFocused=false;usernameFocusStartedAt=performance.now();geometryDirty=true;updateMode()};
+ const onUsernameFocus=()=>{usernameFocused=true;passwordFocused=false;usernameFocusStartedAt=performance.now();setFocusPhase('violet-check');geometryDirty=true;updateMode()};
  const onUsernameBlur=()=>{usernameFocused=false;updateMode()};
  const onUsernameInput=()=>{if(usernameFocused)for(const character of characters)character.typingImpulse=1};
  const onPasswordFocus=()=>{passwordFocused=true;usernameFocused=false;updateMode()};
  const onPasswordBlur=()=>{passwordFocused=false;updateMode()};
  const onLayoutChange=()=>{geometryDirty=true};
- const onEntryAnimationEnd=(event)=>{if(!entryAnimations.has(event.animationName)||!event.target?.matches?.('[data-character]'))return;completedEntryAnimations.add(event.animationName);geometryDirty=true;if(completedEntryAnimations.size===entryAnimations.size)scene.dataset.intro='complete'};
- const onReducedMotionChange=()=>{geometryDirty=true;scene.dataset.intro=reducedQuery.matches?'complete':scene.dataset.intro;updateMode()};
+ const onEntryAnimationEnd=(event)=>{if(!entryAnimations.has(event.animationName)||!event.target?.matches?.('[data-character-entry]'))return;event.target.dataset.entryComplete='true';if(entryElements.every((entry)=>entry.dataset.entryComplete==='true')){scene.dataset.intro='complete';geometryDirty=true}};
+ const onReducedMotionChange=()=>{if(reducedQuery.matches){for(const entry of entryElements)entry.dataset.entryComplete='true';scene.dataset.intro='complete'}geometryDirty=true;updateMode()};
  scene.addEventListener('pointermove',onPointerMove,{passive:true});scene.addEventListener('pointerenter',onPointerEnter,{passive:true});scene.addEventListener('pointerleave',onPointerLeave,{passive:true});
  scene.addEventListener('animationend',onEntryAnimationEnd);
  usernameInput.addEventListener('mouseenter',onUsernameEnter);usernameInput.addEventListener('mouseleave',onUsernameLeave);usernameInput.addEventListener('focus',onUsernameFocus);usernameInput.addEventListener('blur',onUsernameBlur);usernameInput.addEventListener('input',onUsernameInput);

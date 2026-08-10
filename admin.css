@@ -249,3 +249,72 @@
 .login-showcase[data-character-scene] .character-violet{animation:shanman-entry-violet 1160ms cubic-bezier(.2,.72,.18,1) 320ms both}
 .login-showcase[data-character-scene] .character-orange{animation:shanman-entry-orange 980ms cubic-bezier(.18,.82,.22,1) 440ms both}
 @media(prefers-reduced-motion:reduce){.login-showcase[data-character-scene] .character{animation:none!important;translate:0 0!important;rotate:0deg!important;scale:1!important;opacity:1!important}}
+
+
+/* MOTION LAYER FIX: entry, pointer motion and focus pose are intentionally
+   isolated so finishing an entrance cannot disturb tracking or focus. */
+.character{transform:none!important;will-change:auto}
+.character-entry,.character-motion{position:absolute;inset:0;width:100%;height:100%;transform-origin:bottom center}
+.character-motion{--body-x:0px;--body-y:0px;--body-r:0deg;--typing-r:0deg;will-change:transform;transform:translate3d(var(--body-x),var(--body-y),0) skewX(calc(var(--base-r,0deg) + var(--body-r)))}
+.login-showcase[data-interaction-mode="username-focus"] .character-body{--peek-x:0px;--peek-y:0px;--peek-r:0deg;--neck-scale:1;transition:transform 320ms cubic-bezier(.16,1,.3,1);transition-delay:0ms}
+.login-showcase[data-focus-phase="violet-check"] .character-violet .character-body{transform:translate3d(14px,0,0) skewX(-4deg) scaleY(1.035) rotate(var(--typing-r))}
+.login-showcase[data-focus-phase="violet-check"] .character-violet .character-face{transform:translate3d(6px,-2px,0);transition:transform 280ms cubic-bezier(.16,1,.3,1)}
+.login-showcase[data-focus-phase="charcoal-reply"] .character-violet .character-body{transform:translate3d(28px,0,0) skewX(-8deg) scaleY(1.07) rotate(var(--typing-r))}
+.login-showcase[data-focus-phase="charcoal-reply"] .character-violet .character-face{transform:translate3d(9px,-3px,0) scaleY(.95)}
+.login-showcase[data-focus-phase="charcoal-reply"] .character-charcoal .character-body{transform:translate3d(8px,0,0) skewX(4deg) scaleY(1.02) rotate(var(--typing-r))}
+.login-showcase[data-focus-phase="charcoal-reply"] .character-charcoal .character-face{transform:translate3d(-5px,-2px,0)}
+.login-showcase[data-focus-phase="field-lock"] .character-violet .character-body{transform:translate3d(40px,0,0) skewX(-12deg) scaleY(1.10) rotate(var(--typing-r));transition-duration:420ms}
+.login-showcase[data-focus-phase="field-lock"] .character-violet .character-face{transform:translate3d(12px,-4px,0) scaleY(.91);transition:transform 420ms cubic-bezier(.16,1,.3,1)}
+.login-showcase[data-focus-phase="field-lock"] .character-charcoal .character-body{transform:translate3d(20px,0,0) skewX(10deg) scaleY(1.025) rotate(var(--typing-r));transition-duration:420ms}
+.login-showcase[data-focus-phase="field-lock"] .character-charcoal .character-face{transform:translate3d(9px,-2px,0) scaleY(.975);transition:transform 420ms cubic-bezier(.16,1,.3,1)}
+.login-showcase[data-focus-phase="field-lock"] .character-orange .character-body{transform:translate3d(4px,0,0) skewX(1deg) scaleY(1.02) rotate(var(--typing-r))}
+.login-showcase[data-focus-phase="field-lock"] .character-yellow .character-body{transform:translate3d(7px,0,0) skewX(1.2deg) scaleY(1.04) rotate(var(--typing-r))}
+.login-showcase[data-focus-phase="field-lock"] .character-yellow .character-face{transform:translate3d(6px,-1px,0) scaleY(.96)}
+@media(prefers-reduced-motion:reduce){.login-showcase[data-interaction-mode="username-focus"] .character-body,.login-showcase[data-interaction-mode="username-focus"] .character-face{transition-delay:0ms!important;transition-duration:.01ms!important}.login-showcase[data-focus-phase] .character-body,.login-showcase[data-focus-phase] .character-face{transform:none!important}}
+
+/* Finite entrances end with a sub-pixel deceleration tail. JavaScript releases
+   the animation layer at animationend, eliminating retained compositor ghosts. */
+@keyframes shanman-entry-charcoal-smooth{
+  0%{transform:translate3d(34%,-118vh,0) rotate(15deg) scale(.78,1.12);opacity:0}
+  20%{opacity:1}
+  72%{transform:translate3d(-4%,10px,0) rotate(-2deg) scale(1.015,.978)}
+  88%{transform:translate3d(.8%,-2px,0) rotate(.35deg) scale(.997,1.004)}
+  96%{transform:translate3d(-.15%,.4px,0) rotate(-.06deg) scale(1.001,.999)}
+  100%{transform:none;opacity:1}
+}
+@keyframes shanman-entry-yellow-smooth{
+  0%{transform:translate3d(48%,112%,0) rotate(5deg) scale(.58,.34);opacity:0}
+  26%{opacity:1}
+  64%{transform:translate3d(6%,4%,0) rotate(1.2deg) scale(.94,1.09)}
+  82%{transform:translate3d(-1.2%,-4px,0) rotate(-.45deg) scale(1.012,.985)}
+  94%{transform:translate3d(.22%,.7px,0) rotate(.08deg) scale(.998,1.003)}
+  100%{transform:none;opacity:1}
+}
+@keyframes shanman-entry-violet-smooth{
+  0%{transform:translate3d(-64%,-92vh,0) rotate(-18deg) scale(.7,1.14);opacity:0}
+  20%{opacity:1}
+  70%{transform:translate3d(4%,11px,0) rotate(2.2deg) scale(1.016,.975)}
+  86%{transform:translate3d(-.8%,-2.5px,0) rotate(-.42deg) scale(.997,1.005)}
+  96%{transform:translate3d(.15%,.45px,0) rotate(.07deg) scale(1.001,.999)}
+  100%{transform:none;opacity:1}
+}
+@keyframes shanman-entry-orange-smooth{
+  0%{transform:translate3d(-76%,-44vh,0) rotate(-14deg) scale(.28,.36);opacity:0}
+  24%{opacity:1}
+  62%{transform:translate3d(-7%,-12%,0) rotate(-2.8deg) scale(.88,.9)}
+  80%{transform:translate3d(1.3%,6px,0) rotate(.65deg) scale(1.016,.982)}
+  93%{transform:translate3d(-.24%,-1px,0) rotate(-.1deg) scale(.998,1.003)}
+  100%{transform:none;opacity:1}
+}
+.login-showcase[data-character-scene] .character{animation:none!important}
+.login-showcase[data-character-scene] .character-entry[data-entry="charcoal"]{animation:shanman-entry-charcoal-smooth 1150ms cubic-bezier(.2,.72,.18,1) 70ms both}
+.login-showcase[data-character-scene] .character-entry[data-entry="yellow"]{animation:shanman-entry-yellow-smooth 1040ms cubic-bezier(.18,.82,.22,1) 180ms both}
+.login-showcase[data-character-scene] .character-entry[data-entry="violet"]{animation:shanman-entry-violet-smooth 1220ms cubic-bezier(.2,.72,.18,1) 270ms both}
+.login-showcase[data-character-scene] .character-entry[data-entry="orange"]{animation:shanman-entry-orange-smooth 1030ms cubic-bezier(.18,.82,.22,1) 390ms both}
+.login-showcase[data-character-scene] .character-entry[data-entry-complete="true"]{animation:none!important;transform:none!important;opacity:1!important;will-change:auto}
+@media(prefers-reduced-motion:reduce){.login-showcase[data-character-scene] .character-entry{animation:none!important;transform:none!important;opacity:1!important}}
+
+/* Earlier theme blocks define a one-step focus pose. Neutralize it during the
+   staged beats; the character-specific phase rules above then opt back in. */
+.login-showcase[data-focus-phase="violet-check"] .character-charcoal .character-body,.login-showcase[data-focus-phase="violet-check"] .character-orange .character-body,.login-showcase[data-focus-phase="violet-check"] .character-yellow .character-body,.login-showcase[data-focus-phase="charcoal-reply"] .character-orange .character-body,.login-showcase[data-focus-phase="charcoal-reply"] .character-yellow .character-body{transform:none;transition-delay:0ms}
+.login-showcase[data-focus-phase="violet-check"] .character-charcoal .character-face,.login-showcase[data-focus-phase="violet-check"] .character-yellow .character-face,.login-showcase[data-focus-phase="charcoal-reply"] .character-yellow .character-face{transform:none;transition-delay:0ms}
