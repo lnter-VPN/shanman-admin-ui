@@ -318,3 +318,17 @@
    staged beats; the character-specific phase rules above then opt back in. */
 .login-showcase[data-focus-phase="violet-check"] .character-charcoal .character-body,.login-showcase[data-focus-phase="violet-check"] .character-orange .character-body,.login-showcase[data-focus-phase="violet-check"] .character-yellow .character-body,.login-showcase[data-focus-phase="charcoal-reply"] .character-orange .character-body,.login-showcase[data-focus-phase="charcoal-reply"] .character-yellow .character-body{transform:none;transition-delay:0ms}
 .login-showcase[data-focus-phase="violet-check"] .character-charcoal .character-face,.login-showcase[data-focus-phase="violet-check"] .character-yellow .character-face,.login-showcase[data-focus-phase="charcoal-reply"] .character-yellow .character-face{transform:none;transition-delay:0ms}
+
+/* Focus polish: gaze phases remain discrete, but each body follows one
+   uninterrupted curve. This preserves the glance story without velocity
+   resets when the phase attribute changes. */
+@keyframes shanman-focus-violet-smooth{from{transform:none}to{transform:translate3d(40px,0,0) skewX(-12deg) scaleY(1.10) rotate(var(--typing-r))}}
+@keyframes shanman-focus-violet-face-smooth{from{transform:none}to{transform:translate3d(12px,-4px,0) scaleY(.91)}}
+@keyframes shanman-focus-charcoal-smooth{from{transform:none}to{transform:translate3d(20px,0,0) skewX(10deg) scaleY(1.025) rotate(var(--typing-r))}}
+@keyframes shanman-focus-charcoal-face-smooth{from{transform:none}to{transform:translate3d(9px,-2px,0) scaleY(.975)}}
+.login-showcase[data-interaction-mode="username-focus"] .character-violet .character-body{animation:shanman-focus-violet-smooth 980ms cubic-bezier(.4,0,.2,1) 0ms 1 normal backwards}
+.login-showcase[data-interaction-mode="username-focus"] .character-violet .character-face{animation:shanman-focus-violet-face-smooth 980ms cubic-bezier(.4,0,.2,1) 0ms 1 normal backwards}
+.login-showcase[data-interaction-mode="username-focus"] .character-charcoal .character-body{animation:shanman-focus-charcoal-smooth 820ms cubic-bezier(.4,0,.2,1) 180ms 1 normal backwards}
+.login-showcase[data-interaction-mode="username-focus"] .character-charcoal .character-face{animation:shanman-focus-charcoal-face-smooth 820ms cubic-bezier(.4,0,.2,1) 180ms 1 normal backwards}
+.login-showcase .showcase-brand{width:clamp(142px,12vw,152px)}
+@media(prefers-reduced-motion:reduce){.login-showcase[data-interaction-mode="username-focus"] .character-violet .character-body,.login-showcase[data-interaction-mode="username-focus"] .character-violet .character-face,.login-showcase[data-interaction-mode="username-focus"] .character-charcoal .character-body,.login-showcase[data-interaction-mode="username-focus"] .character-charcoal .character-face{animation:none!important}}
