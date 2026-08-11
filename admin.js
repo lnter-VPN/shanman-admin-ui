@@ -234,6 +234,8 @@ function editDialog(button){
 
 function checked(value){return value?' checked':''}
 function selected(value,current){return value===current?' selected':''}
+const DEFAULT_STARTER_PROMPTS=['请介绍你的能力和工作方式','帮我拆解当前任务并给出执行计划','先向我确认完成任务需要的信息'];
+function starterPromptValues(agent={}){const source=Array.isArray(agent.starterPrompts)?agent.starterPrompts:[];return DEFAULT_STARTER_PROMPTS.map((fallback,index)=>String(source[index]||fallback).trim()||fallback)}
 function agentSkillSelector(selectedIds=[]){
  const active=new Set(selectedIds||[]);
  if(!state.catalogSkills.length)return '<div class="builder-empty">还没有可选技能。请先在“技能”页上传技能包。</div>';
@@ -250,6 +252,7 @@ async function openAgentBuilder({id='',clone=false}={}){
  const slug=clone?`${String(agent.slug||'agent').slice(0,56).replace(/-+$/,'')}-${cloneSuffix}`:agent.slug||`agent-${cloneSuffix}`;
  const name=clone?`${agent.name||'智能体'} 副本`:agent.name||'';
  const version=clone?'1.0.0':latest?.version||'1.0.0';
+ const starterPrompts=starterPromptValues(agent);
  const avatar=clone?'':agent.avatar||'';const avatarPreview=avatarUrl(avatar);const currentStatus=clone?'draft':agent.status||'draft';
  $('#dialogRoot').innerHTML=`<div class="dialog-backdrop agent-builder-backdrop"><div class="dialog agent-builder-dialog" role="dialog" aria-modal="true" aria-labelledby="agentBuilderTitle">
   <header class="builder-header"><div><span class="eyebrow">AGENT BUILDER</span><h2 id="agentBuilderTitle">${editing?'编辑智能体':clone?'复制智能体':'新建智能体'}</h2><p>设定它是谁、如何工作、可以使用哪些技能与工具。</p></div><button class="dialog-close" type="button" data-action="close-dialog" aria-label="关闭">×</button></header>
@@ -268,6 +271,7 @@ async function openAgentBuilder({id='',clone=false}={}){
     <label class="field span-2">角色名称<input name="role" maxlength="200" value="${esc(agent.role||agent.summary||'')}" required placeholder="例：新媒体内容策略与交付负责人"></label>
     <label class="field span-2">系统提示词<textarea name="systemPrompt" rows="9" maxlength="200000" required placeholder="你是……\n\n职责：……\n工作流程：……\n输出标准：……">${esc(agent.systemPrompt||'')}</textarea></label>
     <label class="field span-2">欢迎语<textarea name="welcomeMessage" rows="3" maxlength="10000" placeholder="用户打开智能体时看到的第一句话">${esc(agent.welcomeMessage||'')}</textarea></label>
+    <fieldset class="fieldset starter-prompt-fieldset span-2"><legend class="fieldset-legend">开场提示词</legend><p class="label">客户端欢迎页展示三个可直接点击的示例任务</p><div class="starter-prompt-grid"><label class="field"><span>示例 1</span><input class="input" name="starterPrompt1" maxlength="500" value="${esc(starterPrompts[0])}" required placeholder="输入用户可直接发送的任务"></label><label class="field"><span>示例 2</span><input class="input" name="starterPrompt2" maxlength="500" value="${esc(starterPrompts[1])}" required placeholder="输入用户可直接发送的任务"></label><label class="field"><span>示例 3</span><input class="input" name="starterPrompt3" maxlength="500" value="${esc(starterPrompts[2])}" required placeholder="输入用户可直接发送的任务"></label></div></fieldset>
    </div></section>
    <section class="builder-section"><div class="section-title"><span>03</span><div><h3>工作区与权限</h3><p>设定长期目标、交付目录与记忆；运行能力由客户端统一管理</p></div></div><div class="builder-grid">
     <label class="field span-2">工作目标<textarea name="workspaceGoal" rows="3" maxlength="20000" placeholder="它在这个工作区需要持续达成的目标">${esc(workspace.goal||'')}</textarea></label>
@@ -460,7 +464,7 @@ $('#dialogRoot').addEventListener('submit',async(event)=>{
     const advancedCategoryPassword=await advancedCategoryPasswordForSubmission(form,'category');
     const payload={
      name:data.get('name'),slug:data.get('slug'),category:data.get('category'),advancedCategoryPassword,summary:data.get('summary'),description:data.get('description'),icon:data.get('icon'),avatar:data.get('avatar'),
-    role:data.get('role'),systemPrompt:data.get('systemPrompt'),welcomeMessage:data.get('welcomeMessage'),
+    role:data.get('role'),systemPrompt:data.get('systemPrompt'),welcomeMessage:data.get('welcomeMessage'),starterPrompts:[data.get('starterPrompt1'),data.get('starterPrompt2'),data.get('starterPrompt3')],
      workspace:{goal:data.get('workspaceGoal'),roleRules:data.get('workspaceRoleRules'),outputDirectory:data.get('outputDirectory'),memoryEnabled:data.has('memoryEnabled'),allowWeb:true,allowFiles:data.has('allowFiles'),allowTerminal:true},
     skillIds:data.getAll('skillIds'),version:data.get('version'),status:data.get('status'),changelog:data.get('changelog')
    };
