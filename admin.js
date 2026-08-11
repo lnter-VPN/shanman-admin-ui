@@ -7,11 +7,12 @@ const state={token:sessionStorage.getItem(TOKEN_KEY)||'',user:null,page:'dashboa
 let loginCharacterScene;
 const $=(selector)=>document.querySelector(selector);
 const content=$('#content');
-const pageMeta={dashboard:['OVERVIEW','平台概览'],agents:['AGENTS','智能体管理'],skills:['SKILLS','技能管理'],users:['USERS & LICENSES','用户与授权'],audit:['AUDIT & USAGE','操作与统计']};
+const pageMeta={dashboard:['OVERVIEW','平台概览'],agents:['AGENTS','智能体管理'],skills:['SKILLS','技能管理'],users:['USERS & LICENSES','用户与授权'],admins:['ADMINISTRATORS','管理员账号'],audit:['AUDIT & USAGE','操作与统计']};
 const eventLabels={app_started:'客户端启动',agent_created:'创建智能体',agent_installed:'安装智能体',skill_enabled:'启用技能',skill_disabled:'停用技能',chat_completed:'对话成功',chat_failed:'对话失败',channel_connected:'手机通道连接',channel_failed:'手机通道失败'};
-const statusLabels={draft:'草稿',published:'已上架',unpublished:'已下架',deleted:'已删除',active:'有效',revoked:'已吊销',expired:'已过期'};
-const statusHints={draft:'仅后台可见',published:'客户端市场可见',unpublished:'客户端已隐藏',deleted:'已软删除',active:'当前可使用',revoked:'已停止使用',expired:'已过有效期'};
+const statusLabels={draft:'草稿',published:'已上架',unpublished:'已下架',deleted:'已删除',active:'有效',disabled:'已停用',revoked:'已吊销',expired:'已过期'};
+const statusHints={draft:'仅后台可见',published:'客户端市场可见',unpublished:'客户端已隐藏',deleted:'已软删除',active:'当前可使用',disabled:'无法登录后台',revoked:'已停止使用',expired:'已过有效期'};
 const marketplaceCategories=Object.freeze(['通用','漫剧','设计','视频','研究','写作','数据','效率','高级']);
+const advancedCategoryPasswords=new WeakMap();
 
 function esc(value=''){return String(value).replace(/[&<>'"]/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]))}
 function date(value){if(!value)return '—';const parsed=new Date(value);return Number.isFinite(parsed.getTime())?parsed.toLocaleString('zh-CN'):'—'}
@@ -20,9 +21,29 @@ function statusBlock(value){return `<div class="status-block">${status(value)}<s
 function empty(text){return `<div class="empty">${esc(text)}</div>`}
 function notice(message,isError=false){const el=$('#notice');el.textContent=message;el.hidden=!message;el.classList.toggle('error-note',isError);if(message)setTimeout(()=>{if(el.textContent===message)el.hidden=true},5000)}
 function loading(){content.innerHTML='<div class="loading">正在加载…</div>'}
-function categoryOptions(current='通用'){const selectedCategory=String(current||'通用').trim()||'通用';const values=marketplaceCategories.includes(selectedCategory)?marketplaceCategories:[selectedCategory,...marketplaceCategories];return values.map(item=>`<option value="${esc(item)}"${item===selectedCategory?' selected':''}>${esc(item)}</option>`).join('')}
-function advancedCategoryPasswordField(extraClass=''){return `<label class="field advanced-category-password ${extraClass}" data-advanced-password-field hidden><span>高级分类密码 <b>*</b></span><input class="input" name="advancedCategoryPassword" type="password" maxlength="128" autocomplete="new-password" spellcheck="false" placeholder="选择高级分类后必填"><small>密码只会发送给服务端校验，不会写入市场 manifest。</small></label>`}
-function bindAdvancedCategoryPassword(form,categoryField){const category=form?.elements?.[categoryField];const field=form?.querySelector('[data-advanced-password-field]');const password=field?.querySelector('input[name="advancedCategoryPassword"]');if(!category||!field||!password)return;const sync=()=>{const advanced=category.value==='高级';field.hidden=!advanced;password.required=advanced;if(!advanced)password.value=''};category.addEventListener('change',sync);sync()}
+function categoryOptions(current='漫剧'){const selectedCategory=String(current||'漫剧').trim()||'漫剧';const values=marketplaceCategories.includes(selectedCategory)?marketplaceCategories:[selectedCategory,...marketplaceCategories];return values.map(item=>`<option value="${esc(item)}"${item===selectedCategory?' selected':''}>${esc(item)}</option>`).join('')}
+
+function requestAdvancedCategoryPassword(){
+ return new Promise((resolve)=>{
+  const modal=document.createElement('dialog');modal.className='advanced-password-modal';modal.setAttribute('data-advanced-password-dialog','');modal.setAttribute('aria-labelledby','advancedPasswordTitle');modal.innerHTML=`<form method="dialog" class="advanced-password-card" data-advanced-password-form><header><span class="advanced-lock-mark" aria-hidden="true">◆</span><div><p class="eyebrow">RESTRICTED CATEGORY</p><h2 id="advancedPasswordTitle">验证高级分类密码</h2><p>只有通过验证后才能将资源归入“高级”，密码不会保存在浏览器。</p></div></header><label class="field">高级分类密码<input name="password" type="password" maxlength="128" autocomplete="off" spellcheck="false" required placeholder="请输入密码"></label><p class="advanced-password-error" role="alert" aria-live="polite"></p><div class="dialog-actions"><button class="secondary" type="button" data-advanced-cancel>取消</button><button class="primary" type="submit" value="verify">验证并选择</button></div></form>`;
+  document.body.append(modal);const form=modal.querySelector('form');const input=form.elements.password;const error=modal.querySelector('.advanced-password-error');let settled=false;
+  const finish=(password='')=>{if(settled)return;settled=true;if(modal.open)modal.close();modal.remove();resolve(password)};
+  modal.addEventListener('cancel',(event)=>{event.preventDefault();finish()});modal.addEventListener('click',(event)=>{if(event.target===modal)finish()});modal.querySelector('[data-advanced-cancel]').addEventListener('click',()=>finish());
+  form.addEventListener('submit',async(event)=>{event.preventDefault();const password=String(input.value||'');const submit=form.querySelector('button[type="submit"]');error.textContent='';submit.disabled=true;submit.textContent='正在验证…';try{await api('/api/admin/advanced-category/verify',{method:'POST',body:JSON.stringify({password})});finish(password)}catch(reason){error.textContent=reason.message||'密码验证失败';input.select()}finally{if(modal.isConnected){submit.disabled=false;submit.textContent='验证并选择'}}});
+  modal.showModal();requestAnimationFrame(()=>input.focus());
+ });
+}
+
+function bindAdvancedCategoryPassword(form,categoryField){
+ const category=form?.elements?.[categoryField];if(!category)return;let previousCategory=category.value==='高级'?'漫剧':category.value;
+ category.addEventListener('change',async()=>{const nextCategory=category.value;if(nextCategory!=='高级'){advancedCategoryPasswords.delete(form);previousCategory=nextCategory;return}category.disabled=true;const password=await requestAdvancedCategoryPassword();if(password){advancedCategoryPasswords.set(form,password);previousCategory='高级'}else{advancedCategoryPasswords.delete(form);category.value=previousCategory==='高级'?'漫剧':previousCategory}category.disabled=false;category.focus()});
+}
+
+async function advancedCategoryPasswordForSubmission(form,categoryField){
+ const category=form?.elements?.[categoryField];if(!category||category.value!=='高级')return '';
+ const verified=advancedCategoryPasswords.get(form);if(verified)return verified;
+ const password=await requestAdvancedCategoryPassword();if(!password){category.value='漫剧';throw new Error('已取消高级分类，请选择其他分类')};advancedCategoryPasswords.set(form,password);return password;
+}
 
 async function api(path,options={}){
  if(!state.apiBase)throw new Error('后台 API 尚未配置。GitHub Pages 只负责显示界面，请先填写 HTTPS 后台地址。');
@@ -44,7 +65,7 @@ async function navigate(page){
  state.page=page;const meta=pageMeta[page]||pageMeta.dashboard;$('#pageEyebrow').textContent=meta[0];$('#pageTitle').textContent=meta[1];
  document.querySelectorAll('#navigation button').forEach((button)=>button.classList.toggle('active',button.dataset.page===page));
  $('.sidebar').classList.remove('open');loading();
- try{if(page==='dashboard')await renderDashboard();else if(page==='agents'||page==='skills')await renderProducts(page);else if(page==='users')await renderUsers();else await renderAudit()}catch(error){content.innerHTML=empty(error.message);notice(error.message,true)}
+ try{if(page==='dashboard')await renderDashboard();else if(page==='agents'||page==='skills')await renderProducts(page);else if(page==='users')await renderUsers();else if(page==='admins')await renderAdmins();else await renderAudit()}catch(error){content.innerHTML=empty(error.message);notice(error.message,true)}
 }
 
 async function renderDashboard(){
@@ -81,10 +102,10 @@ async function renderProducts(type){
  }
 
 function uploadPanel(type){
-  if(type==='agents')return `<section class="panel"><div class="panel-head"><div><h2>上传现有智能体包</h2><p>支持最大 10MB 的 JSON 或 ZIP，manifest.version 必须递增；上传后先保存为草稿。</p></div></div><form id="uploadForm" class="upload-form agent-package-upload" data-type="agents"><label class="field">选择安装包<input name="package" type="file" accept=".json,.zip,application/json,application/zip" required></label><label class="field"><span>高级分类密码</span><input class="input" name="advancedCategoryPassword" type="password" maxlength="128" autocomplete="new-password" spellcheck="false" placeholder="仅包内分类为高级时填写"></label><button class="secondary" type="submit">上传智能体包</button></form></section>`;
+  if(type==='agents')return `<section class="panel"><div class="panel-head"><div><h2>上传现有智能体包</h2><p>支持最大 10MB 的 JSON 或 ZIP，manifest.version 必须递增；上传后先保存为草稿。如果包内分类为高级，上传时会自动弹出密码验证。</p></div></div><form id="uploadForm" class="upload-form agent-package-upload" data-type="agents"><label class="field">选择安装包<input name="package" type="file" accept=".json,.zip,application/json,application/zip" required></label><button class="secondary" type="submit">上传智能体包</button></form></section>`;
   return `<section class="panel skill-upload-panel"><div class="panel-head"><div><h2>上传技能</h2><p>可以直接选择技能文件夹，也可以继续上传 JSON / ZIP。文件夹至少要包含 <b>SKILL.md</b>，其他安全文件会一并打包保存。</p></div><span class="upload-limit">≤ 10 MB</span></div>
   <form id="uploadForm" class="skill-upload-form" data-type="skills">
-   <div class="skill-upload-fields"><label class="field"><span>技能名称 <b>*</b></span><input name="skillName" maxlength="120" required placeholder="例如：小红书内容策划"></label><label class="field"><span>技能标识 <b>*</b></span><input name="skillSlug" maxlength="64" pattern="[a-z0-9][a-z0-9-]{0,63}" required placeholder="例如：xiaohongshu-content"></label><label class="field"><span>分类 <b>*</b></span><select class="select" name="skillCategory" required>${categoryOptions('通用')}</select></label>${advancedCategoryPasswordField('span-2')}<label class="field"><span>版本 <b>*</b></span><input name="skillVersion" value="1.0.0" pattern="\\d+\\.\\d+\\.\\d+" required placeholder="1.0.0"></label><label class="field span-2"><span>一句话摘要</span><input name="skillSummary" maxlength="500" placeholder="告诉客户这个技能适合解决什么问题"></label><label class="field span-2"><span>技能说明</span><textarea name="skillDescription" rows="2" maxlength="50000" placeholder="可选，后台详情页展示"></textarea></label><label class="field span-2"><span>更新说明</span><input name="skillChangelog" maxlength="20000" placeholder="例如：首次发布"></label></div>
+   <div class="skill-upload-fields"><label class="field"><span>技能名称 <b>*</b></span><input name="skillName" maxlength="120" required placeholder="例如：小红书内容策划"></label><label class="field"><span>技能标识 <b>*</b></span><input name="skillSlug" maxlength="64" pattern="[a-z0-9][a-z0-9-]{0,63}" required placeholder="例如：xiaohongshu-content"></label><label class="field"><span>分类 <b>*</b></span><select class="select" name="skillCategory" required>${categoryOptions('漫剧')}</select><small>选择“高级”会立即弹出密码验证。</small></label><label class="field"><span>版本 <b>*</b></span><input name="skillVersion" value="1.0.0" pattern="\\d+\\.\\d+\\.\\d+" required placeholder="1.0.0"></label><label class="field span-2"><span>一句话摘要</span><input name="skillSummary" maxlength="500" placeholder="告诉客户这个技能适合解决什么问题"></label><label class="field span-2"><span>技能说明</span><textarea name="skillDescription" rows="2" maxlength="50000" placeholder="可选，后台详情页展示"></textarea></label><label class="field span-2"><span>更新说明</span><input name="skillChangelog" maxlength="20000" placeholder="例如：首次发布"></label></div>
    <div class="skill-source-grid"><label class="skill-source-card folder-source"><span class="source-icon">⌁</span><span><strong>选择技能文件夹</strong><small>推荐：自动读取 SKILL.md 和 manifest.json</small></span><input id="skillFolder" name="folder" type="file" webkitdirectory directory multiple accept=".md,.json,.txt,.png,.jpg,.jpeg,.webp,.gif,.ico"></label><label class="skill-source-card package-source"><span class="source-icon">⇧</span><span><strong>选择 JSON / ZIP 包</strong><small>已有标准安装包可直接上传</small></span><input name="package" type="file" accept=".json,.zip,application/json,application/zip"></label></div>
    <p id="skillFolderMeta" class="skill-folder-meta">尚未选择文件夹。文件夹上传时，上面的名称、标识和发布选项会覆盖 manifest 对应字段。</p>
    <div class="skill-upload-footer"><div class="publish-mode"><strong>上传后状态</strong><label class="selected-draft"><input type="radio" name="publishMode" value="draft" checked><span><b>保存为草稿</b><small>仅管理员可见，确认后再上架</small></span></label><label class="selected-published"><input type="radio" name="publishMode" value="published"><span><b>上传后直接上架</b><small>完成校验后立即同步到客户端市场</small></span></label></div><button class="primary skill-upload-submit" type="submit">上传技能</button></div>
@@ -177,6 +198,24 @@ async function renderUsers(){
  <section class="panel"><div class="panel-head"><div><h2>设备授权记录</h2><p>Key 完整内容需通过设备码精确查询；吊销和替换记录不会丢失</p></div><span class="record-count">${licenses.items.length} 条记录</span></div>${licenseTable(licenses.items)}</section>
  <section class="panel"><div class="panel-head"><div><h2>平台用户</h2><p>不显示密码，使用统计仅为匿名事件计数</p></div></div>${userTable(users.items)}</section>`;
 }
+
+async function renderAdmins(){
+ const data=await api('/api/admin/admins');const items=Array.isArray(data)?data:(data.items||[]);
+ content.innerHTML=`<section class="panel admin-account-intro"><div><span class="eyebrow">ACCOUNT DELIVERY</span><h2>后台管理员账号下发</h2><p>为需要进入后台的管理人员设置独立账号和密码。密码只在创建或重置时提交，列表中不会显示。</p></div><span class="admin-count"><strong>${items.length}</strong><small>管理员</small></span></section>
+ <section class="panel"><div class="panel-head"><div><h2>添加管理员</h2><p>账号、邮箱和初始密码由你自行设置</p></div></div><form id="adminCreateForm" class="admin-create-form" autocomplete="off"><label class="field">管理员账号 <b>*</b><input name="username" minlength="3" maxlength="20" required autocomplete="off" placeholder="例如：editor01"></label><label class="field">联系邮箱（可选）<input name="email" type="email" maxlength="254" autocomplete="off" placeholder="name@example.com"></label><label class="field">初始密码 <b>*</b><input name="password" type="password" minlength="8" maxlength="128" required autocomplete="new-password" placeholder="至少 8 位"></label><label class="field">确认密码 <b>*</b><input name="passwordConfirm" type="password" minlength="8" maxlength="128" required autocomplete="new-password" placeholder="再次输入密码"></label><button class="primary" type="submit">下发管理员账号</button></form></section>
+ <section class="panel"><div class="panel-head"><div><h2>管理员列表</h2><p>可重置密码或停用不再需要的账号</p></div><span class="record-count">${items.length} 个账号</span></div>${adminAccountTable(items)}</section>`;
+}
+
+function adminAccountTable(items){
+ if(!items.length)return empty('还没有可管理的后台账号');
+ return `<div class="table-wrap admin-account-table"><table><thead><tr><th>管理员</th><th>邮箱</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody>${items.map((item)=>{const current=Boolean(item.isCurrent||item.id===state.user?.id);return `<tr><td><strong>${esc(item.username||'未命名管理员')}</strong>${current?'<br><span class="current-admin-badge">当前账号</span>':''}</td><td>${esc(item.email||'未设置')}</td><td>${statusBlock('active')}</td><td>${date(item.createdAt||item.created_at)}</td><td><div class="actions"><button class="table-action" type="button" data-action="reset-admin-password" data-id="${esc(item.id)}" data-name="${esc(item.username||item.email||'管理员')}">重置密码</button><button class="table-action warn" type="button" data-action="delete-admin" data-id="${esc(item.id)}" data-name="${esc(item.username||item.email||'管理员')}"${current?' disabled title="不能停用当前登录账号"':''}>停用并移除</button></div></td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+function adminPasswordResetDialog(button){
+ $('#dialogRoot').innerHTML=`<div class="dialog-backdrop"><div class="dialog admin-reset-dialog" role="dialog" aria-modal="true" aria-labelledby="adminResetTitle"><h2 id="adminResetTitle">重置“${esc(button.dataset.name)}”的密码</h2><p class="subtle">保存后旧密码和旧登录会话将失效，请将新密码安全地交给该管理员。</p><form id="adminPasswordResetForm" data-id="${esc(button.dataset.id)}"><label class="field">新密码<input name="password" type="password" minlength="8" maxlength="128" required autocomplete="new-password" placeholder="至少 8 位"></label><label class="field">确认新密码<input name="passwordConfirm" type="password" minlength="8" maxlength="128" required autocomplete="new-password" placeholder="再次输入新密码"></label><div class="dialog-actions"><button class="secondary" type="button" data-action="close-dialog">取消</button><button class="primary" type="submit">确认重置</button></div></form></div></div>`;
+ $('#adminPasswordResetForm input[name="password"]')?.focus();
+}
+
 function userTable(items){if(!items.length)return empty('暂无用户');return `<div class="table-wrap"><table><thead><tr><th>用户</th><th>角色</th><th>授权数</th><th>使用事件</th><th>最近使用</th><th>注册时间</th></tr></thead><tbody>${items.map((u)=>`<tr><td><strong>${esc(u.username)}</strong><br><span class="subtle">${esc(u.email)}</span></td><td>${esc(u.role)}</td><td>${u.license_count}</td><td>${u.event_count}</td><td>${date(u.last_seen_at)}</td><td>${date(u.created_at)}</td></tr>`).join('')}</tbody></table></div>`}
 function licenseTable(items){if(!items.length)return empty('暂无设备授权');return `<div class="table-wrap license-table"><table><thead><tr><th>客户</th><th>设备码</th><th>Key 前缀</th><th>状态</th><th>激活情况</th><th>到期</th><th>操作</th></tr></thead><tbody>${items.map((item)=>`<tr><td><strong>${esc(item.display_name||item.username||'未命名授权')}</strong><br><span class="subtle">${esc(item.username||item.email||'未关联用户')}</span></td><td><code class="machine-code">${esc(item.machine_fingerprint||'非绑定授权')}</code></td><td class="mono">${esc(item.license_key_prefix)}</td><td>${statusBlock(item.status)}</td><td>${item.activated_at?`<span class="activation-state used"><i></i>已激活</span><br><small class="subtle">${date(item.activated_at)}</small>`:'<span class="activation-state pending"><i></i>等待激活</span>'}</td><td>${item.expires_at?date(item.expires_at):'永久'}</td><td>${item.status==='active'?`<button class="table-action warn" data-action="revoke-license" data-id="${item.id}">吊销</button>`:'—'}</td></tr>`).join('')}</tbody></table></div>`}
 function issuedLicenseCard(result){return `<div class="issued-license-card"><div class="issued-license-heading"><span>✓</span><div><strong>新的设备专属 Key 已生成</strong><small>已持久化到服务器，可随时按设备码找回</small></div></div><div class="issued-device"><span>设备码</span><code>${esc(result.machine_fingerprint||result.payload?.machine||'')}</code></div><div class="license-key-box"><textarea readonly spellcheck="false">${esc(result.licenseKey)}</textarea><button class="primary" data-action="copy-license" type="button">复制授权 Key</button></div></div>`}
@@ -185,7 +224,7 @@ function searchedLicenseCards(data){if(!data.items?.length)return `<div class="l
 async function renderAudit(){
  const [audit,usage]=await Promise.all([api('/api/admin/audit'),api('/api/admin/telemetry?days=30')]);const max=Math.max(1,...usage.byEvent.map((item)=>item.count));
  content.innerHTML=`<section class="panel"><div class="panel-head"><div><h2>匿名使用统计</h2><p>近 ${usage.days} 天，按事件类型聚合</p></div></div><div class="event-bars">${usage.byEvent.length?usage.byEvent.map((item)=>`<div class="event-row"><span>${esc(eventLabels[item.name]||item.name)}</span><div class="bar"><i style="width:${Math.max(3,item.count/max*100)}%"></i></div><strong>${item.count}</strong></div>`).join(''):empty('暂无统计')}</div></section>
- <section class="panel"><div class="panel-head"><div><h2>管理员操作日志</h2><p>最近 ${audit.items.length} 条</p></div></div>${auditTable(audit.items)}</section>`;
+ <section class="panel"><div class="panel-head"><div><h2>管理员操作日志</h2><p>最近 ${audit.items.length} 条</p></div><button class="danger clear-audit-button" type="button" data-action="clear-audit">清空操作日志</button></div>${auditTable(audit.items)}</section>`;
 }
 function auditTable(items){if(!items.length)return empty('暂无操作日志');return `<div class="table-wrap"><table><thead><tr><th>时间</th><th>管理员</th><th>操作</th><th>对象</th><th>摘要</th></tr></thead><tbody>${items.map((item)=>`<tr><td>${date(item.created_at)}</td><td>${esc(item.username||item.email||'系统')}</td><td class="mono">${esc(item.action)}</td><td>${esc(item.entity_type||'—')}</td><td class="subtle">${esc(JSON.stringify(item.metadata||{})).slice(0,180)}</td></tr>`).join('')}</tbody></table></div>`}
 
@@ -220,8 +259,7 @@ async function openAgentBuilder({id='',clone=false}={}){
     <div class="builder-grid three profile-fields">
      <label class="field">名称<input name="name" maxlength="120" value="${esc(name)}" required placeholder="例：新媒体内容总监"></label>
      <label class="field">唯一标识 Slug<input name="slug" maxlength="64" pattern="[a-z0-9][a-z0-9-]*" value="${esc(slug)}" required placeholder="content-director"></label>
-     <label class="field">分类<select class="select" name="category" required>${categoryOptions(agent.category||'通用')}</select></label>
-     ${advancedCategoryPasswordField('span-3')}
+     <label class="field">分类<select class="select" name="category" required>${categoryOptions(agent.category||'漫剧')}</select><small>选择“高级”会立即弹出密码验证。</small></label>
      <label class="field span-3">一句话简介<input name="summary" maxlength="500" value="${esc(agent.summary||'')}" placeholder="一句话说清它能解决什么问题"></label>
      <label class="field span-3">详细介绍<textarea name="description" rows="3" maxlength="50000" placeholder="介绍职责、适用场景与交付物">${esc(agent.description||'')}</textarea></label>
     </div>
@@ -393,16 +431,18 @@ content.addEventListener('submit',async(event)=>{
  event.preventDefault();const form=event.target;
  try{
    if(form.id==='uploadForm'){
-    const type=form.dataset.type;const body=new FormData();let file;
-    if(type==='skills'){
-     const folderFiles=[...(form.elements.folder?.files||[])];const packageFile=form.elements.package?.files?.[0];
-     if(folderFiles.length)file=await skillFolderPackage(form,folderFiles);else if(packageFile)file=await skillJsonPackage(form,packageFile);else throw new Error('请选择技能文件夹或 JSON / ZIP 安装包');
-     body.append('publishMode',String(form.elements.publishMode?.value||'draft'));
-     for(const field of ['skillName','skillSlug','skillCategory','skillVersion','skillSummary','skillDescription','skillChangelog','advancedCategoryPassword'])body.append(field,String(form.elements[field]?.value||''));
-    }else{file=form.elements.package?.files?.[0];if(!file)throw new Error('请选择文件');body.append('advancedCategoryPassword',String(form.elements.advancedCategoryPassword?.value||''))}
-    body.append('package',file,file.name);const result=await api(`/api/admin/${type}/upload`,{method:'POST',body});const id=result.product?.id||result.id;if(!id)throw new Error('上传成功但服务器没有返回资源 ID');
-    const expected=type==='skills'?String(form.elements.publishMode?.value||'draft'):'draft';if(type==='skills'&&expected==='published'&&result.product?.status!=='published')await api(`/api/admin/${type}/${id}/publish`,{method:'POST'});const verified=await verifyProductState(type,id,expected);notice(expected==='published'?`技能“${verified.name}”已写入数据库并上架，公共目录已确认可见（${verified.slug} · v${verified.latestVersion?.version||verified.latest_version?.version||'—'}）`:`技能“${verified.name}”已写入数据库并保存为草稿，公共目录已确认隐藏`);await navigate(type);return;
-   }
+     const type=form.dataset.type;const body=new FormData();let file;
+     if(type==='skills'){
+      const advancedCategoryPassword=await advancedCategoryPasswordForSubmission(form,'skillCategory');
+      const folderFiles=[...(form.elements.folder?.files||[])];const packageFile=form.elements.package?.files?.[0];
+      if(folderFiles.length)file=await skillFolderPackage(form,folderFiles);else if(packageFile)file=await skillJsonPackage(form,packageFile);else throw new Error('请选择技能文件夹或 JSON / ZIP 安装包');
+      body.append('publishMode',String(form.elements.publishMode?.value||'draft'));
+      for(const field of ['skillName','skillSlug','skillCategory','skillVersion','skillSummary','skillDescription','skillChangelog'])body.append(field,String(form.elements[field]?.value||''));body.append('advancedCategoryPassword',advancedCategoryPassword);
+     }else{file=form.elements.package?.files?.[0];if(!file)throw new Error('请选择文件')}
+     body.append('package',file,file.name);let result;try{result=await api(`/api/admin/${type}/upload`,{method:'POST',body})}catch(error){if(type!=='agents'||!String(error.message||'').includes('高级'))throw error;const password=await requestAdvancedCategoryPassword();if(!password)throw new Error('已取消高级分类验证，本次上传未提交');body.set('advancedCategoryPassword',password);result=await api(`/api/admin/${type}/upload`,{method:'POST',body})}const id=result.product?.id||result.id;if(!id)throw new Error('上传成功但服务器没有返回资源 ID');
+     const expected=type==='skills'?String(form.elements.publishMode?.value||'draft'):'draft';if(type==='skills'&&expected==='published'&&result.product?.status!=='published')await api(`/api/admin/${type}/${id}/publish`,{method:'POST'});const verified=await verifyProductState(type,id,expected);advancedCategoryPasswords.delete(form);notice(expected==='published'?`技能“${verified.name}”已写入数据库并上架，公共目录已确认可见（${verified.slug} · v${verified.latestVersion?.version||verified.latest_version?.version||'—'}）`:`技能“${verified.name}”已写入数据库并保存为草稿，公共目录已确认隐藏`);await navigate(type);return;
+    }
+   if(form.id==='adminCreateForm'){const data=new FormData(form);const password=String(data.get('password')||'');const passwordConfirm=String(data.get('passwordConfirm')||'');if(password!==passwordConfirm)throw new Error('两次输入的密码不一致');const submit=form.querySelector('button[type="submit"]');submit.disabled=true;try{await api('/api/admin/admins',{method:'POST',body:JSON.stringify({username:String(data.get('username')||'').trim(),email:String(data.get('email')||'').trim()||undefined,password,passwordConfirm})});form.reset();notice('管理员账号已下发');await renderAdmins()}finally{submit.disabled=false}return}
   if(form.id==='licenseForm'){const data=new FormData(form);const machine=String(data.get('machine')||'').trim().toLowerCase();const validity=String(data.get('validity')||'365');const payload={name:data.get('name'),userId:data.get('userId')||undefined,machine,...(validity==='permanent'?{permanent:true}:{days:Number(validity)})};const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=true;try{const result=await api('/api/admin/licenses',{method:'POST',body:JSON.stringify(payload)});$('#licenseResult').innerHTML=issuedLicenseCard(result);notice('设备专属 Key 已生成并保存到服务器')}finally{if(submit)submit.disabled=false}return}
   if(form.id==='licenseSearchForm'){const data=new FormData(form);const machine=String(data.get('machine')||'').trim().toLowerCase();const target=$('#licenseSearchResult');target.innerHTML='<div class="loading compact">正在查询设备授权…</div>';const result=await api(`/api/admin/licenses/device/${encodeURIComponent(machine)}`);target.innerHTML=searchedLicenseCards(result);return}
  }catch(error){notice(error.message,true)}
@@ -416,16 +456,20 @@ $('#dialogRoot').addEventListener('submit',async(event)=>{
    $('#dialogRoot').innerHTML='';notice('保存成功');await navigate(form.dataset.type);return;
   }
   if(form.id==='agentBuilderForm'){
-   const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=true;
-   const payload={
-    name:data.get('name'),slug:data.get('slug'),category:data.get('category'),advancedCategoryPassword:data.get('advancedCategoryPassword'),summary:data.get('summary'),description:data.get('description'),icon:data.get('icon'),avatar:data.get('avatar'),
+    const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=true;
+    const advancedCategoryPassword=await advancedCategoryPasswordForSubmission(form,'category');
+    const payload={
+     name:data.get('name'),slug:data.get('slug'),category:data.get('category'),advancedCategoryPassword,summary:data.get('summary'),description:data.get('description'),icon:data.get('icon'),avatar:data.get('avatar'),
     role:data.get('role'),systemPrompt:data.get('systemPrompt'),welcomeMessage:data.get('welcomeMessage'),
      workspace:{goal:data.get('workspaceGoal'),roleRules:data.get('workspaceRoleRules'),outputDirectory:data.get('outputDirectory'),memoryEnabled:data.has('memoryEnabled'),allowWeb:true,allowFiles:data.has('allowFiles'),allowTerminal:true},
     skillIds:data.getAll('skillIds'),version:data.get('version'),status:data.get('status'),changelog:data.get('changelog')
    };
    const id=form.dataset.id;await api(id?`/api/admin/agents/${id}`:'/api/admin/agents',{method:id?'PATCH':'POST',body:JSON.stringify(payload)});
-   $('#dialogRoot').innerHTML='';notice(id?'智能体已保存':'智能体已创建');await navigate('agents');return;
-  }
+    advancedCategoryPasswords.delete(form);$('#dialogRoot').innerHTML='';notice(id?'智能体已保存':'智能体已创建');await navigate('agents');return;
+   }
+   if(form.id==='adminPasswordResetForm'){
+    const password=String(data.get('password')||'');const passwordConfirm=String(data.get('passwordConfirm')||'');if(password!==passwordConfirm)throw new Error('两次输入的密码不一致');const submit=form.querySelector('button[type="submit"]');submit.disabled=true;await api(`/api/admin/admins/${form.dataset.id}/reset-password`,{method:'POST',body:JSON.stringify({password,passwordConfirm})});$('#dialogRoot').innerHTML='';notice('管理员密码已重置，旧登录会话已失效');await navigate('admins');return;
+   }
  }catch(error){const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=false;notice(error.message,true)}
 });
 
@@ -434,6 +478,7 @@ document.addEventListener('click',async(event)=>{
  if(action==='dashboard-nav'){void navigate(button.dataset.page);return}
  if(action==='filter-products'){state.productFilters[button.dataset.type]=button.dataset.filter;void navigate(button.dataset.type);return}
  if(action==='close-dialog'){$('#dialogRoot').innerHTML='';return}if(action==='edit-product'){editDialog(button);return}
+ if(action==='reset-admin-password'){adminPasswordResetDialog(button);return}
  if(action==='create-agent'||action==='edit-agent'||action==='clone-agent'){
   try{await openAgentBuilder({id:button.dataset.id||'',clone:action==='clone-agent'})}catch(error){notice(error.message,true)}return;
  }
@@ -444,12 +489,18 @@ document.addEventListener('click',async(event)=>{
    const original=button.textContent;button.disabled=true;button.textContent='处理中…';
     try{await api(`/api/admin/${type}/${id}/${action}`,{method:'POST'});await verifyProductState(type,id,expected);state.productFilters[type]=expected;notice(action==='publish'?'已真实上架，客户端市场已确认可见':type==='skills'?'技能已真实下架，客户端市场已隐藏；绑定智能体保持原状态':'智能体已真实下架，客户端市场已隐藏');await navigate(type)}finally{button.disabled=false;button.textContent=original}return;
   }
-  if(action==='permanent-delete'){
+   if(action==='permanent-delete'){
    if(!confirm(`永久删除“${button.dataset.name||'该资源'}”？数据库记录、全部版本和上传文件将立即清除，且无法恢复。`))return;
    const type=button.dataset.type;const id=button.dataset.id;const slug=button.dataset.slug||'';const original=button.textContent;button.disabled=true;button.textContent='永久删除中…';
    try{const result=await api(`/api/admin/${type}/${id}/permanent?confirm=${encodeURIComponent(slug)}`,{method:'DELETE'});await verifyProductGone(type,id);state.productFilters[type]='active';const detached=Number(result.affectedAgents?.length||0);notice(`已从数据库永久删除“${button.dataset.name||result.slug}”${result.removedVersions?`，清理 ${result.removedVersions} 个版本`:''}${detached?`；已从 ${detached} 个智能体配置中解除该技能，智能体发布状态未改变`:''}${result.cleanupWarnings?'；部分历史文件清理失败，请检查服务器日志':''}`,Boolean(result.cleanupWarnings));await navigate(type)}finally{button.disabled=false;button.textContent=original}return;
-  }
-  if(action==='revoke-license'&&confirm('确定吊销这条授权？已激活设备后续将无法再次验证。')){await api(`/api/admin/licenses/${button.dataset.id}/revoke`,{method:'POST'});notice('授权已吊销');await navigate('users')}
+   }
+   if(action==='delete-admin'){
+    if(!confirm(`停用并移除管理员“${button.dataset.name||'该账号'}”？该账号将无法再登录后台。`))return;button.disabled=true;try{await api(`/api/admin/admins/${button.dataset.id}`,{method:'DELETE'});notice('管理员账号已停用并移除');await navigate('admins')}finally{button.disabled=false}return;
+   }
+   if(action==='clear-audit'){
+    if(!confirm('确定清空现有管理员操作日志？清理后只保留本次清理记录。'))return;button.disabled=true;try{const result=await api('/api/admin/audit',{method:'DELETE'});notice(`已清理 ${Number(result.deletedCount||0)} 条操作日志`);await navigate('audit')}finally{button.disabled=false}return;
+   }
+   if(action==='revoke-license'&&confirm('确定吊销这条授权？已激活设备后续将无法再次验证。')){await api(`/api/admin/licenses/${button.dataset.id}/revoke`,{method:'POST'});notice('授权已吊销');await navigate('users')}
  }catch(error){notice(error.message,true)}
 });
 

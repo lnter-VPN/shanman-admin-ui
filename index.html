@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>闪漫 AI 管理后台</title>
-  <link rel="stylesheet" href="./admin.css?v=20260810-039">
+  <link rel="stylesheet" href="./admin.css?v=20260811-041">
 </head>
 <body>
   <section id="loginView" class="login-shell" data-login-shell>
@@ -84,12 +84,13 @@
 
   <div id="appView" class="app-shell" hidden>
     <aside class="sidebar">
-      <div class="brand"><span>闪</span><div><strong>闪漫 AI</strong><small>单管理员后台</small></div></div>
+      <div class="brand"><img src="./assets/shanman-vision-mark.png" alt=""><div><strong>闪漫视界</strong><small>管理员后台</small></div></div>
       <nav id="navigation">
         <button data-page="dashboard" class="active">概览</button>
         <button data-page="agents">智能体</button>
         <button data-page="skills">技能</button>
         <button data-page="users">用户与授权</button>
+        <button data-page="admins">管理员</button>
         <button data-page="audit">操作与统计</button>
       </nav>
       <div class="sidebar-bottom"><span id="adminIdentity"></span><button id="logoutButton" class="ghost">退出登录</button></div>
@@ -102,6 +103,6 @@
   </div>
   <div id="dialogRoot"></div>
   <script src="./config.js?v=20260803-028"></script>
-  <script src="./admin.js?v=20260810-035" defer></script>
+  <script src="./admin.js?v=20260811-041" defer></script>
 </body>
 </html>
