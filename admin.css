@@ -176,6 +176,10 @@
 @media(max-width:900px){.skill-upload-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.skill-upload-fields .span-2{grid-column:span 2}.skill-upload-footer{align-items:stretch;flex-direction:column}.publish-mode{grid-template-columns:1fr 1fr}.publish-mode>strong{grid-column:1/-1}}
 @media(max-width:600px){.skill-upload-fields,.skill-source-grid{grid-template-columns:1fr}.skill-upload-fields .span-2{grid-column:span 1}.publish-mode{grid-template-columns:1fr}.publish-mode>strong{grid-column:auto}.skill-upload-submit{width:100%}}
 
+/* 分类授权：高级分类密码只在选择高级时显示，提交后由服务端校验。 */
+.advanced-category-password{align-content:start;gap:6px}.advanced-category-password small{color:#7b8495;font-size:10px;font-weight:500;line-height:1.45}.advanced-category-password input{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.04em}.agent-package-upload{grid-template-columns:minmax(0,1fr) minmax(220px,.6fr) auto}.agent-package-upload .advanced-category-password{min-width:220px}
+@media(max-width:760px){.agent-package-upload{grid-template-columns:1fr}.agent-package-upload .advanced-category-password{min-width:0}}
+
 /* FINAL REFERENCE OVERRIDE: keep the public login geometry compact and aligned. */
 .login-shell[data-login-shell]{display:block;min-height:100dvh;padding:0;overflow:hidden;background:#fff}
 .login-shell[data-login-shell] .login-stage{width:100%;height:100dvh;min-height:100dvh;grid-template-columns:1fr 1fr;border:0;border-radius:0;background:#fff;box-shadow:none}
