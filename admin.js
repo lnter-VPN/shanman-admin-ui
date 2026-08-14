@@ -102,11 +102,11 @@ async function renderProducts(type){
  }
 
 function uploadPanel(type){
-  if(type==='agents')return `<section class="panel"><div class="panel-head"><div><h2>上传现有智能体包</h2><p>支持最大 10MB 的 JSON 或 ZIP，manifest.version 必须递增；上传后先保存为草稿。如果包内分类为高级，上传时会自动弹出密码验证。</p></div></div><form id="uploadForm" class="upload-form agent-package-upload" data-type="agents"><label class="field">选择安装包<input name="package" type="file" accept=".json,.zip,application/json,application/zip" required></label><button class="secondary" type="submit">上传智能体包</button></form></section>`;
-  return `<section class="panel skill-upload-panel"><div class="panel-head"><div><h2>上传技能</h2><p>可以直接选择技能文件夹，也可以继续上传 JSON / ZIP。文件夹至少要包含 <b>SKILL.md</b>，其他安全文件会一并打包保存。</p></div><span class="upload-limit">≤ 10 MB</span></div>
+  if(type==='agents')return `<section class="panel skill-upload-panel"><div class="panel-head"><div><h2>上传现有智能体</h2><p>可以直接选择智能体文件夹，也可以上传 JSON / ZIP。文件夹需包含 <b>manifest.json</b> 和 <b>system-prompt.md</b>；不设置固定容量或文件数量上限。</p></div><span class="upload-limit">不限固定容量</span></div><form id="uploadForm" class="skill-upload-form agent-package-upload" data-type="agents"><div class="skill-source-grid"><label class="skill-source-card folder-source"><span class="source-icon">⌁</span><span><strong>选择智能体文件夹</strong><small>自动保留工作区中的全部普通文件</small></span><input id="agentFolder" name="folder" type="file" webkitdirectory directory multiple></label><label class="skill-source-card package-source"><span class="source-icon">⇧</span><span><strong>选择 JSON / ZIP 包</strong><small>已有标准安装包可直接上传</small></span><input name="package" type="file" accept=".json,.zip,application/json,application/zip"></label></div><p id="agentFolderMeta" class="skill-folder-meta">尚未选择文件夹。文件夹中的路径结构和辅助文件会原样打包。</p><div class="skill-upload-footer"><span></span><button class="primary skill-upload-submit" type="submit">上传智能体</button></div></form></section>`;
+  return `<section class="panel skill-upload-panel"><div class="panel-head"><div><h2>上传技能</h2><p>可以直接选择技能文件夹，也可以继续上传 JSON / ZIP。文件夹至少要包含 <b>SKILL.md</b>，脚本和其他普通文件会一并打包保存；不设置固定容量或文件数量上限。</p></div><span class="upload-limit">不限固定容量</span></div>
   <form id="uploadForm" class="skill-upload-form" data-type="skills">
    <div class="skill-upload-fields"><label class="field"><span>技能名称 <b>*</b></span><input name="skillName" maxlength="120" required placeholder="例如：小红书内容策划"></label><label class="field"><span>技能标识 <b>*</b></span><input name="skillSlug" maxlength="64" pattern="[a-z0-9][a-z0-9-]{0,63}" required placeholder="例如：xiaohongshu-content"></label><label class="field"><span>分类 <b>*</b></span><select class="select" name="skillCategory" required>${categoryOptions('漫剧')}</select></label><label class="field"><span>版本 <b>*</b></span><input name="skillVersion" value="1.0.0" pattern="\\d+\\.\\d+\\.\\d+" required placeholder="1.0.0"></label><label class="field span-2"><span>一句话摘要</span><input name="skillSummary" maxlength="500" placeholder="告诉客户这个技能适合解决什么问题"></label><label class="field span-2"><span>技能说明</span><textarea name="skillDescription" rows="2" maxlength="50000" placeholder="可选，后台详情页展示"></textarea></label><label class="field span-2"><span>更新说明</span><input name="skillChangelog" maxlength="20000" placeholder="例如：首次发布"></label></div>
-   <div class="skill-source-grid"><label class="skill-source-card folder-source"><span class="source-icon">⌁</span><span><strong>选择技能文件夹</strong><small>推荐：自动读取 SKILL.md 和 manifest.json</small></span><input id="skillFolder" name="folder" type="file" webkitdirectory directory multiple accept=".md,.json,.txt,.png,.jpg,.jpeg,.webp,.gif,.ico"></label><label class="skill-source-card package-source"><span class="source-icon">⇧</span><span><strong>选择 JSON / ZIP 包</strong><small>已有标准安装包可直接上传</small></span><input name="package" type="file" accept=".json,.zip,application/json,application/zip"></label></div>
+   <div class="skill-source-grid"><label class="skill-source-card folder-source"><span class="source-icon">⌁</span><span><strong>选择技能文件夹</strong><small>推荐：自动读取 SKILL.md 和 manifest.json</small></span><input id="skillFolder" name="folder" type="file" webkitdirectory directory multiple></label><label class="skill-source-card package-source"><span class="source-icon">⇧</span><span><strong>选择 JSON / ZIP 包</strong><small>已有标准安装包可直接上传</small></span><input name="package" type="file" accept=".json,.zip,application/json,application/zip"></label></div>
    <p id="skillFolderMeta" class="skill-folder-meta">尚未选择文件夹。文件夹上传时，上面的名称、标识和发布选项会覆盖 manifest 对应字段。</p>
    <div class="skill-upload-footer"><div class="publish-mode"><strong>上传后状态</strong><label class="selected-draft"><input type="radio" name="publishMode" value="draft" checked><span><b>保存为草稿</b><small>仅管理员可见，确认后再上架</small></span></label><label class="selected-published"><input type="radio" name="publishMode" value="published"><span><b>上传后直接上架</b><small>完成校验后立即同步到客户端市场</small></span></label></div><button class="primary skill-upload-submit" type="submit">上传技能</button></div>
   </form></section>`;
@@ -125,7 +125,7 @@ function uploadRoot(files){
 function relativeUploadPath(file,root){
   let value=String(file.webkitRelativePath||file.name||'').replaceAll('\\','/').replace(/^\/+|\/+$/g,'');
   if(root&&value.startsWith(`${root}/`))value=value.slice(root.length+1);
-  if(!value||value.split('/').some(part=>!part||part==='.'||part==='..'))throw new Error('技能文件夹包含无效路径');
+  if(!value||value.split('/').some(part=>!part||part==='.'||part==='..'))throw new Error('上传文件夹包含无效路径');
   return value;
 }
 
@@ -149,9 +149,22 @@ async function skillFolderPackage(form,files){
   if(manifestFile){try{sourceManifest=JSON.parse(await manifestFile.text());if(!sourceManifest||typeof sourceManifest!=='object'||Array.isArray(sourceManifest))throw new Error()}catch{throw new Error('manifest.json 不是有效 JSON')}}
   const data=new FormData(form);const slug=normalizeSkillSlug(data.get('skillSlug'));const manifest={...sourceManifest,type:'skill',name:String(data.get('skillName')||'').trim(),slug,summary:String(data.get('skillSummary')||'').trim(),description:String(data.get('skillDescription')||'').trim(),category:String(data.get('skillCategory')||sourceManifest.category||'通用').trim(),version:String(data.get('skillVersion')||'1.0.0').trim(),changelog:String(data.get('skillChangelog')||'').trim()};
   if(!manifest.name)throw new Error('请填写技能名称');
-  const entries=[{name:'manifest.json',bytes:new TextEncoder().encode(`${JSON.stringify(manifest,null,2)}\n`)},{name:'SKILL.md',bytes:new Uint8Array(await markdown.arrayBuffer())}];const seen=new Set(entries.map(entry=>entry.name.toLowerCase()));let total=entries.reduce((sum,entry)=>sum+entry.bytes.length,0);
-  for(const file of files){const name=getPath(file);const lower=name.toLowerCase();const baseName=lower.split('/').pop();if(seen.has(lower)||['manifest.json','skill.md'].includes(baseName)||lower.endsWith('/'))continue;const bytes=new Uint8Array(await file.arrayBuffer());total+=bytes.length;if(total>10*1024*1024)throw new Error('技能文件夹打包后不能超过 10MB');entries.push({name,bytes});seen.add(lower)}
-  const blob=storedZip(entries);if(blob.size>10*1024*1024)throw new Error('技能文件夹打包后不能超过 10MB');return new File([blob],`${slug}.zip`,{type:'application/zip'});
+  const entries=[{name:'manifest.json',bytes:new TextEncoder().encode(`${JSON.stringify(manifest,null,2)}\n`)},{name:'SKILL.md',bytes:new Uint8Array(await markdown.arrayBuffer())}];const seen=new Set(entries.map(entry=>entry.name.toLowerCase()));
+  for(const file of files){const name=getPath(file);const lower=name.toLowerCase();const baseName=lower.split('/').pop();if(seen.has(lower)||['manifest.json','skill.md'].includes(baseName)||lower.endsWith('/'))continue;entries.push({name,bytes:new Uint8Array(await file.arrayBuffer())});seen.add(lower)}
+  return new File([storedZip(entries)],`${slug}.zip`,{type:'application/zip'});
+}
+
+async function agentFolderPackage(files){
+  if(!files.length)throw new Error('请选择智能体文件夹');
+  const root=uploadRoot(files);const getPath=file=>relativeUploadPath(file,root);const core=(name)=>files.filter(file=>getPath(file).split('/').pop().toLowerCase()===name).sort((a,b)=>getPath(a).split('/').length-getPath(b).split('/').length);
+  const manifestFile=core('manifest.json')[0];const promptFile=core('system-prompt.md')[0];
+  if(!manifestFile)throw new Error('智能体文件夹中缺少 manifest.json');
+  if(!promptFile)throw new Error('智能体文件夹中缺少 system-prompt.md');
+  let manifest;try{manifest=JSON.parse(await manifestFile.text());if(!manifest||typeof manifest!=='object'||Array.isArray(manifest))throw new Error()}catch{throw new Error('manifest.json 不是有效 JSON')}
+  manifest={...manifest,type:'agent'};const slug=String(manifest.slug||root||'agent').trim();
+  const entries=[{name:'manifest.json',bytes:new TextEncoder().encode(`${JSON.stringify(manifest,null,2)}\n`)},{name:'system-prompt.md',bytes:new Uint8Array(await promptFile.arrayBuffer())}];const seen=new Set(entries.map(entry=>entry.name.toLowerCase()));
+  for(const file of files){const name=getPath(file);const lower=name.toLowerCase();const baseName=lower.split('/').pop();if(seen.has(lower)||['manifest.json','system-prompt.md'].includes(baseName)||lower.endsWith('/'))continue;entries.push({name,bytes:new Uint8Array(await file.arrayBuffer())});seen.add(lower)}
+  return new File([storedZip(entries)],`${normalizeSkillSlug(slug)}.zip`,{type:'application/zip'});
 }
 
 async function skillJsonPackage(form,file){
@@ -160,7 +173,7 @@ async function skillJsonPackage(form,file){
 }
 
 function bindUploadForm(form){
-  if(!form)return;if(form.dataset.type==='skills')bindAdvancedCategoryPassword(form,'skillCategory');if(form.dataset.type!=='skills')return;const folder=form.elements.folder;const name=form.elements.skillName;const slug=form.elements.skillSlug;const meta=form.querySelector('#skillFolderMeta');
+  if(!form)return;if(form.dataset.type==='skills')bindAdvancedCategoryPassword(form,'skillCategory');const folder=form.elements.folder;if(form.dataset.type==='agents'){const meta=form.querySelector('#agentFolderMeta');folder.addEventListener('change',()=>{const files=[...folder.files];const root=uploadRoot(files);meta.textContent=files.length?`已选择“${root||'智能体文件夹'}”，共 ${files.length} 个文件；提交时会自动打包并校验 manifest.json 与 system-prompt.md。`:'尚未选择文件夹。文件夹中的路径结构和辅助文件会原样打包。'});return}if(form.dataset.type!=='skills')return;const name=form.elements.skillName;const slug=form.elements.skillSlug;const meta=form.querySelector('#skillFolderMeta');
   name.addEventListener('input',()=>{name.dataset.auto='false'});slug.addEventListener('input',()=>{slug.dataset.auto='false'});
   folder.addEventListener('change',()=>{const files=[...folder.files];const root=uploadRoot(files);if(root&&!name.value){name.value=root;name.dataset.auto='true'}if(root&&(!slug.value||slug.dataset.auto==='true')){slug.value=normalizeSkillSlug(root);slug.dataset.auto='true'}meta.textContent=files.length?`已选择“${root||'技能文件夹'}”，共 ${files.length} 个文件；提交时会自动打包并校验 SKILL.md。`:'尚未选择文件夹。文件夹上传时，上面的名称、标识和发布选项会覆盖 manifest 对应字段。'});
 }
@@ -442,7 +455,7 @@ content.addEventListener('submit',async(event)=>{
       if(folderFiles.length)file=await skillFolderPackage(form,folderFiles);else if(packageFile)file=await skillJsonPackage(form,packageFile);else throw new Error('请选择技能文件夹或 JSON / ZIP 安装包');
       body.append('publishMode',String(form.elements.publishMode?.value||'draft'));
       for(const field of ['skillName','skillSlug','skillCategory','skillVersion','skillSummary','skillDescription','skillChangelog'])body.append(field,String(form.elements[field]?.value||''));body.append('advancedCategoryPassword',advancedCategoryPassword);
-     }else{file=form.elements.package?.files?.[0];if(!file)throw new Error('请选择文件')}
+      }else{const folderFiles=[...(form.elements.folder?.files||[])];const packageFile=form.elements.package?.files?.[0];if(folderFiles.length)file=await agentFolderPackage(folderFiles);else if(packageFile)file=packageFile;else throw new Error('请选择智能体文件夹或 JSON / ZIP 安装包')}
      body.append('package',file,file.name);let result;try{result=await api(`/api/admin/${type}/upload`,{method:'POST',body})}catch(error){if(type!=='agents'||!String(error.message||'').includes('高级'))throw error;const password=await requestAdvancedCategoryPassword();if(!password)throw new Error('已取消高级分类验证，本次上传未提交');body.set('advancedCategoryPassword',password);result=await api(`/api/admin/${type}/upload`,{method:'POST',body})}const id=result.product?.id||result.id;if(!id)throw new Error('上传成功但服务器没有返回资源 ID');
      const expected=type==='skills'?String(form.elements.publishMode?.value||'draft'):'draft';if(type==='skills'&&expected==='published'&&result.product?.status!=='published')await api(`/api/admin/${type}/${id}/publish`,{method:'POST'});const verified=await verifyProductState(type,id,expected);advancedCategoryPasswords.delete(form);notice(expected==='published'?`技能“${verified.name}”已写入数据库并上架，公共目录已确认可见（${verified.slug} · v${verified.latestVersion?.version||verified.latest_version?.version||'—'}）`:`技能“${verified.name}”已写入数据库并保存为草稿，公共目录已确认隐藏`);await navigate(type);return;
     }
