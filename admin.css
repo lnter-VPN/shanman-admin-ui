@@ -348,3 +348,15 @@
 /* Three editable welcome tasks shared by web-built and package-uploaded agents. */
 .starter-prompt-fieldset{min-width:0;margin:0;padding:15px;border:1px solid #e1e6ee;border-radius:13px;background:#fafbfc}.starter-prompt-fieldset .fieldset-legend{padding:0 7px;color:#313b50;font-size:13px;font-weight:800}.starter-prompt-fieldset>.label{margin:0 0 12px;color:#7b8596;font-size:10px;font-weight:500}.starter-prompt-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.starter-prompt-grid .field{min-width:0}.starter-prompt-grid .field>span{font-size:10px}.starter-prompt-grid .input{min-height:43px;background:#fff}
 @media(max-width:800px){.starter-prompt-grid{grid-template-columns:1fr}}
+
+/* Device authorization record search and terminal-history actions. */
+.license-workspace{grid-template-columns:1fr}
+.license-record-head{align-items:flex-end}
+.license-record-tools{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.license-record-search{display:grid;grid-template-columns:minmax(260px,360px) auto auto;gap:8px;align-items:center}
+.license-record-search input{min-width:0;height:40px;text-transform:lowercase;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;letter-spacing:.035em}
+.license-record-search .secondary,.license-record-search .ghost{min-height:40px;padding:9px 13px;white-space:nowrap}
+.license-record-panel .record-count{flex:0 0 auto;white-space:nowrap}
+.license-table .table-action.danger{background:#fff0f0;color:#b62c37}
+@media(max-width:1000px){.license-record-head{align-items:stretch;flex-direction:column}.license-record-tools{justify-content:flex-start}.license-record-search{flex:1;width:min(100%,540px)}}
+@media(max-width:600px){.license-record-tools{align-items:stretch;flex-direction:column}.license-record-search{grid-template-columns:minmax(0,1fr) auto auto;width:100%}.license-record-panel .record-count{align-self:flex-start}}
