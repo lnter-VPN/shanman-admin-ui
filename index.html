@@ -3,8 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- GitHub Pages cannot configure response-level X-Frame-Options/CSP headers.
+       This meta policy protects the remaining directives; frame-guard.js hides
+       the admin UI when embedded. frame-ancestors is still enforced by the API
+       hosted copy through its HTTP response header. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src https: http://127.0.0.1:* http://localhost:*; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>闪漫 AI 管理后台</title>
-  <link rel="stylesheet" href="./admin.css?v=20260811-042">
+  <script src="./frame-guard.js"></script>
+  <link rel="stylesheet" href="./admin.css?v=20260831-044">
 </head>
 <body>
   <section id="loginView" class="login-shell" data-login-shell>
@@ -103,6 +109,6 @@
   </div>
   <div id="dialogRoot"></div>
   <script src="./config.js?v=20260803-028"></script>
-  <script src="./admin.js?v=20260811-042" defer></script>
+  <script src="./admin.js?v=20260831-044" defer></script>
 </body>
 </html>
