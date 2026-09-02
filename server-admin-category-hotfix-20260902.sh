@@ -77,9 +77,11 @@ for _ in $(seq 1 60); do
 done
 test "$READY" = 1
 
-SERVED_SHA=$(curl -fsS http://127.0.0.1:8080/admin/admin.js | sha256sum | awk '{print toupper($1)}')
+SERVED_ADMIN="$STAGE/served-admin.js"
+curl -fsS http://127.0.0.1:8080/admin/admin.js -o "$SERVED_ADMIN"
+SERVED_SHA=$(sha256sum "$SERVED_ADMIN" | awk '{print toupper($1)}')
 test "$SERVED_SHA" = "${EXPECTED_ADMIN_SHA^^}"
-curl -fsS http://127.0.0.1:8080/admin/admin.js | grep -Fq "['通用','漫剧','设计','视频','软件','写作','运营','电商','高级']"
+grep -Fq "['通用','漫剧','设计','视频','软件','写作','运营','电商','高级']" "$SERVED_ADMIN"
 
 cleanup
 trap - ERR INT TERM
