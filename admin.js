@@ -3,11 +3,11 @@ const API_BASE_KEY='shanman-admin-api-base';
 const isGitHubPages=location.hostname.endsWith('.github.io');
 const configuredApiBase=String(globalThis.SHANMAN_API_BASE||'').trim();
 const initialApiBase=localStorage.getItem(API_BASE_KEY)||configuredApiBase||(isGitHubPages?'':location.origin);
-const state={token:sessionStorage.getItem(TOKEN_KEY)||'',user:null,page:'dashboard',apiBase:initialApiBase.replace(/\/$/,''),catalogSkills:[],productFilters:{agents:'active',skills:'active'},licenseMachineFilter:'',packagePolicies:{}};
+const state={token:sessionStorage.getItem(TOKEN_KEY)||'',user:null,page:'dashboard',apiBase:initialApiBase.replace(/\/$/,''),catalogSkills:[],tutorials:[],productFilters:{agents:'active',skills:'active'},licenseMachineFilter:'',packagePolicies:{}};
 let loginCharacterScene;
 const $=(selector)=>document.querySelector(selector);
 const content=$('#content');
-const pageMeta={dashboard:['OVERVIEW','平台概览'],agents:['AGENTS','智能体管理'],skills:['SKILLS','技能管理'],users:['USERS & LICENSES','用户与授权'],admins:['ADMINISTRATORS','管理员账号'],audit:['AUDIT & USAGE','操作与统计']};
+const pageMeta={dashboard:['OVERVIEW','平台概览'],agents:['AGENTS','智能体管理'],skills:['SKILLS','技能管理'],tutorials:['TUTORIALS','教程发布'],users:['USERS & LICENSES','用户与授权'],admins:['ADMINISTRATORS','管理员账号'],audit:['AUDIT & USAGE','操作与统计']};
 const eventLabels={app_started:'客户端启动',agent_created:'创建智能体',agent_installed:'安装智能体',skill_enabled:'启用技能',skill_disabled:'停用技能',chat_completed:'对话成功',chat_failed:'对话失败',channel_connected:'手机通道连接',channel_failed:'手机通道失败'};
 const statusLabels={draft:'草稿',published:'已上架',unpublished:'已下架',deleted:'已删除',active:'有效',disabled:'已停用',revoked:'已吊销',expired:'已过期'};
 const statusHints={draft:'仅后台可见',published:'客户端市场可见',unpublished:'客户端已隐藏',deleted:'已软删除',active:'当前可使用',disabled:'无法登录后台',revoked:'已停止使用',expired:'已过有效期'};
@@ -93,10 +93,13 @@ function showApp(){loginCharacterScene?.stop();$('#loginView').hidden=true;$('#a
 function logout(){state.token='';state.user=null;sessionStorage.removeItem(TOKEN_KEY);showLogin()}
 
 async function navigate(page){
+ if(state.page==='tutorials'&&window.TutorialPublisher&&!window.TutorialPublisher.canLeave())return;
+ if(state.page==='tutorials'&&window.TutorialPublisher)window.TutorialPublisher.dispose();
+ document.body.dataset.adminPage=page;content.classList.remove('tutorial-publisher');content.onclick=null;content.oninput=null;content.onchange=null;content.onsubmit=null;content.ondragover=null;content.ondragleave=null;content.ondrop=null;content.onpaste=null;
  state.page=page;const meta=pageMeta[page]||pageMeta.dashboard;$('#pageEyebrow').textContent=meta[0];$('#pageTitle').textContent=meta[1];
  document.querySelectorAll('#navigation button').forEach((button)=>button.classList.toggle('active',button.dataset.page===page));
  $('.sidebar').classList.remove('open');loading();
- try{if(page==='dashboard')await renderDashboard();else if(page==='agents'||page==='skills')await renderProducts(page);else if(page==='users')await renderUsers();else if(page==='admins')await renderAdmins();else await renderAudit()}catch(error){content.innerHTML=empty(error.message);notice(error.message,true)}
+ try{if(page==='dashboard')await renderDashboard();else if(page==='agents'||page==='skills')await renderProducts(page);else if(page==='tutorials')await renderTutorials();else if(page==='users')await renderUsers();else if(page==='admins')await renderAdmins();else await renderAudit()}catch(error){content.innerHTML=empty(error.message);notice(error.message,true)}
 }
 
 async function renderDashboard(){
@@ -141,6 +144,43 @@ function uploadPanel(type){
    <p id="skillFolderMeta" class="skill-folder-meta">尚未选择文件夹。文件夹上传时，上面的名称、标识和发布选项会覆盖 manifest 对应字段。</p>
    <div class="skill-upload-footer"><div class="publish-mode"><strong>上传后状态</strong><label class="selected-draft"><input type="radio" name="publishMode" value="draft" checked><span><b>保存为草稿</b><small>仅管理员可见，确认后再上架</small></span></label><label class="selected-published"><input type="radio" name="publishMode" value="published"><span><b>上传后直接上架</b><small>完成校验后立即同步到客户端市场</small></span></label></div><button class="primary skill-upload-submit" type="submit">上传技能</button></div>
   </form></section>`;
+}
+
+const tutorialCategoryLabels=Object.freeze({'getting-started':'新手入门',agents:'智能体使用','skills-tools':'技能与工具','files-knowledge':'文件与知识','company-collaboration':'一人公司协作','comic-workflow':'漫剧工作流',models:'模型配置',mobile:'手机端连接',troubleshooting:'故障排查'});
+const tutorialActionLabels=Object.freeze({'':'不设置快捷入口',agents:'AI 员工',market:'AI 超市',skills:'技能',settings:'模型配置','settings-mobile':'手机端连接'});
+function tutorialOptions(current='',values=tutorialCategoryLabels){return Object.entries(values).map(([value,label])=>`<option value="${esc(value)}"${value===current?' selected':''}>${esc(label)}</option>`).join('')}
+function lines(value){return Array.isArray(value)?value.join('\n'):''}
+function tutorialStatusActions(item){return item.status==='published'?`<button class="table-action amber" data-action="tutorial-status" data-status="unpublished" data-id="${esc(item.id)}">下架</button>`:`<button class="table-action green" data-action="tutorial-status" data-status="published" data-id="${esc(item.id)}">发布</button>`}
+
+async function renderTutorials(){
+ if(window.TutorialPublisher)return window.TutorialPublisher.mount({root:content,api,base:()=>state.apiBase,token:()=>state.token});
+ const data=await api('/api/admin/tutorials');state.tutorials=data.items||[];
+ const published=state.tutorials.filter(item=>item.status==='published').length;
+ content.innerHTML=`<section class="panel tutorial-admin-hero"><div><span class="eyebrow">TUTORIAL PUBLISHER</span><h2>教程发布中心</h2><p>按客户端现有教程结构填写：准备内容、分步操作、注意事项和完成标准。发布后，客户端重新打开“教程”即会合并展示；离线时内置教程仍然可用。</p></div><div class="tutorial-admin-actions"><span><b>${published}</b> 篇已发布</span><button class="primary" type="button" data-action="create-tutorial">＋ 新建教程</button></div></section>
+ <section class="panel"><div class="panel-head"><div><h2>教程列表</h2><p>草稿仅后台可见，已发布内容会通过公开教程接口进入客户端</p></div><div class="catalog-total"><strong>${state.tutorials.length}</strong><small>全部教程</small></div></div>${tutorialTable(state.tutorials)}</section>`;
+}
+
+function tutorialTable(items){if(!items.length)return empty('还没有后台教程，点击“新建教程”填写第一篇。');return `<div class="table-wrap tutorial-table"><table><thead><tr><th>教程</th><th>分类</th><th>结构</th><th>排序</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${items.map(item=>`<tr><td><strong>${esc(item.title)}</strong><br><span class="subtle mono">${esc(item.slug)}</span><br><small class="subtle">${esc(item.summary)}</small></td><td><span class="category-pill">${esc(tutorialCategoryLabels[item.category]||item.category)}</span></td><td>${item.steps?.length||0} 个步骤<br><small class="subtle">${item.preparation?.length||0} 项准备 · ${item.completion?.length||0} 项验收</small></td><td>${Number(item.sortOrder)||0}</td><td>${statusBlock(item.status)}</td><td>${date(item.updatedAt)}</td><td><div class="actions"><button class="table-action" data-action="edit-tutorial" data-id="${esc(item.id)}">编辑</button>${tutorialStatusActions(item)}<button class="table-action danger" data-action="delete-tutorial" data-id="${esc(item.id)}" data-name="${esc(item.title)}">删除</button></div></td></tr>`).join('')}</tbody></table></div>`}
+
+function tutorialStepEditor(step={},index=0){return `<div class="tutorial-step-editor"><header><strong>步骤 ${index+1}</strong><button class="ghost" type="button" data-action="remove-tutorial-step" aria-label="删除该步骤">删除</button></header><div class="tutorial-step-fields"><label class="field">步骤标题<input name="stepTitle" maxlength="120" value="${esc(step.title||'')}" placeholder="例如：打开模型配置"></label><label class="field span-2">详细操作<textarea name="stepBody" rows="3" maxlength="4000" placeholder="写清点哪里、填什么、看到什么结果">${esc(step.body||'')}</textarea></label><label class="field span-2">本步验收提示（可选）<input name="stepCheck" maxlength="1000" value="${esc(step.check||'')}" placeholder="例如：必须看到真实测试成功"></label></div></div>`}
+
+function openTutorialDialog(item={}){
+ const editing=Boolean(item.id);const defaultSteps=editing?(item.steps||[]):[{},{},{}];
+ $('#dialogRoot').innerHTML=`<div class="dialog-backdrop tutorial-editor-backdrop"><div class="dialog tutorial-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="tutorialEditorTitle"><header class="builder-header"><div><span class="eyebrow">TUTORIAL TEMPLATE</span><h2 id="tutorialEditorTitle">${editing?'编辑教程':'新建教程'}</h2><p>这个模板与客户端教程详情一致，填写后可先存草稿，确认再发布。</p></div><button class="dialog-close" type="button" data-action="close-dialog" aria-label="关闭">×</button></header><form id="tutorialForm" data-id="${esc(item.id||'')}">
+ <section class="builder-section"><div class="section-title"><span>01</span><div><h3>基本信息</h3><p>标题和简介会显示在教程目录中</p></div></div><div class="builder-grid three"><label class="field">教程标题<input name="title" maxlength="160" value="${esc(item.title||'')}" required placeholder="例如：如何上传并读取文件"></label><label class="field">英文标识<input name="slug" maxlength="80" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value="${esc(item.slug||'')}" required placeholder="file-upload-guide"></label><label class="field">所属分类<select name="category" required>${tutorialOptions(item.category||'getting-started')}</select></label><label class="field">预计时长<input name="duration" maxlength="40" value="${esc(item.duration||'约 3 分钟')}" required></label><label class="field">分类内排序<input name="sortOrder" type="number" min="-100000" max="100000" step="1" value="${Number(item.sortOrder)||0}" required></label><label class="field">保存状态<select name="status"><option value="draft"${selected('draft',item.status||'draft')}>草稿</option><option value="unpublished"${selected('unpublished',item.status)}>已下架</option><option value="published"${selected('published',item.status)}>直接发布</option></select></label><label class="field span-3">一句话简介<textarea name="summary" rows="2" maxlength="500" required placeholder="说清这篇教程帮客户完成什么">${esc(item.summary||'')}</textarea></label></div></section>
+ <section class="builder-section"><div class="section-title"><span>02</span><div><h3>开始前与操作步骤</h3><p>准备内容每行一项；步骤可继续添加、删除和调整文字</p></div></div><label class="field">开始前准备（每行一项）<textarea name="preparation" rows="3" maxlength="20000" placeholder="准备可用的账号\n准备需要处理的文件">${esc(lines(item.preparation))}</textarea></label><div id="tutorialSteps" class="tutorial-steps-editor">${defaultSteps.map(tutorialStepEditor).join('')}</div><button class="secondary add-tutorial-step" type="button" data-action="add-tutorial-step">＋ 添加一个步骤</button></section>
+ <section class="builder-section"><div class="section-title"><span>03</span><div><h3>提示、验收与快捷入口</h3><p>让客户知道哪些情况需要注意，以及什么才算完成</p></div></div><div class="builder-grid"><label class="field">注意事项（每行一项）<textarea name="tips" rows="4" maxlength="20000">${esc(lines(item.tips))}</textarea></label><label class="field">完成标准（每行一项）<textarea name="completion" rows="4" maxlength="20000">${esc(lines(item.completion))}</textarea></label><label class="field">看完后打开<select name="actionTarget">${tutorialOptions(item.action?.target||'',tutorialActionLabels)}</select></label><label class="field">快捷按钮文案<input name="actionLabel" maxlength="80" value="${esc(item.action?.label||'')}" placeholder="例如：打开模型配置"></label></div></section>
+ <div class="dialog-actions sticky"><button class="secondary" type="button" data-action="close-dialog">取消</button><span class="save-hint">建议先保存草稿，核对后再发布</span><button class="primary" type="submit">${editing?'保存教程':'创建教程'}</button></div></form></div></div>`;
+}
+
+function tutorialPayload(form){
+ const data=new FormData(form);const titles=data.getAll('stepTitle');const bodies=data.getAll('stepBody');const checks=data.getAll('stepCheck');
+ const steps=titles.map((title,index)=>({title:String(title||'').trim(),body:String(bodies[index]||'').trim(),check:String(checks[index]||'').trim()})).filter(step=>step.title||step.body);
+ if(!steps.length)throw new Error('请至少填写一个完整的操作步骤');
+ if(steps.some(step=>!step.title||!step.body))throw new Error('每个已填写的步骤都需要标题和详细操作');
+ const list=name=>String(data.get(name)||'').split(/\r?\n/).map(value=>value.trim()).filter(Boolean);const actionTarget=String(data.get('actionTarget')||'');const actionLabel=String(data.get('actionLabel')||'').trim();
+ if(Boolean(actionTarget)!==Boolean(actionLabel))throw new Error('快捷入口的位置和按钮文案需要同时填写');
+ return {title:data.get('title'),slug:data.get('slug'),category:data.get('category'),duration:data.get('duration'),summary:data.get('summary'),sortOrder:Number(data.get('sortOrder')),status:data.get('status'),preparation:list('preparation'),steps,tips:list('tips'),completion:list('completion'),action:actionTarget?{target:actionTarget,label:actionLabel}:null};
 }
 
 function normalizeSkillSlug(value){
@@ -511,6 +551,12 @@ $('#dialogRoot').addEventListener('submit',async(event)=>{
    const id=form.dataset.id;await api(id?`/api/admin/agents/${id}`:'/api/admin/agents',{method:id?'PATCH':'POST',body:JSON.stringify(payload)});
     advancedCategoryPasswords.delete(form);$('#dialogRoot').innerHTML='';notice(id?'智能体已保存':'智能体已创建');await navigate('agents');return;
    }
+   if(form.id==='tutorialForm'){
+    const submit=form.querySelector('button[type="submit"]');if(submit)submit.disabled=true;
+    const payload=tutorialPayload(form);const id=form.dataset.id;
+    await api(id?`/api/admin/tutorials/${id}`:'/api/admin/tutorials',{method:id?'PATCH':'POST',body:JSON.stringify(payload)});
+    $('#dialogRoot').innerHTML='';notice(payload.status==='published'?'教程已保存并发布到客户端':'教程已保存');await navigate('tutorials');return;
+   }
    if(form.id==='adminPasswordResetForm'){
     const password=String(data.get('password')||'');const passwordConfirm=String(data.get('passwordConfirm')||'');if(password!==passwordConfirm)throw new Error('两次输入的密码不一致');const submit=form.querySelector('button[type="submit"]');submit.disabled=true;await api(`/api/admin/admins/${form.dataset.id}/reset-password`,{method:'POST',body:JSON.stringify({password,passwordConfirm})});$('#dialogRoot').innerHTML='';notice('管理员密码已重置，旧登录会话已失效');await navigate('admins');return;
    }
@@ -526,8 +572,18 @@ document.addEventListener('click',async(event)=>{
  if(action==='create-agent'||action==='edit-agent'||action==='clone-agent'){
   try{await openAgentBuilder({id:button.dataset.id||'',clone:action==='clone-agent'})}catch(error){notice(error.message,true)}return;
  }
+ if(action==='create-tutorial'){openTutorialDialog();return}
+ if(action==='edit-tutorial'){const item=state.tutorials.find(entry=>entry.id===button.dataset.id);if(!item){notice('教程记录不存在，请刷新后重试',true);return}openTutorialDialog(item);return}
+ if(action==='add-tutorial-step'){const root=$('#tutorialSteps');if(!root)return;const count=root.querySelectorAll('.tutorial-step-editor').length;root.insertAdjacentHTML('beforeend',tutorialStepEditor({},count));root.lastElementChild?.querySelector('input')?.focus();return}
+ if(action==='remove-tutorial-step'){button.closest('.tutorial-step-editor')?.remove();[...document.querySelectorAll('#tutorialSteps .tutorial-step-editor')].forEach((row,index)=>{const label=row.querySelector('header strong');if(label)label.textContent=`步骤 ${index+1}`});return}
  if(action==='copy-license'){const value=button.closest('.license-key-box')?.querySelector('textarea')?.value||'';try{await navigator.clipboard.writeText(value);notice('已复制授权 Key')}catch{notice('复制失败，请手动复制',true)}return}
  try{
+  if(action==='tutorial-status'){
+   const next=button.dataset.status;button.disabled=true;try{await api(`/api/admin/tutorials/${button.dataset.id}/status`,{method:'POST',body:JSON.stringify({status:next})});notice(next==='published'?'教程已发布，客户端重新打开教程即可获取':'教程已下架');await navigate('tutorials')}finally{if(button.isConnected)button.disabled=false}return;
+  }
+  if(action==='delete-tutorial'){
+   if(!confirm(`确定删除教程“${button.dataset.name||'该教程'}”？删除后客户端不再获取，且无法恢复。`))return;button.disabled=true;try{await api(`/api/admin/tutorials/${button.dataset.id}`,{method:'DELETE'});notice('教程已删除');await navigate('tutorials')}finally{if(button.isConnected)button.disabled=false}return;
+  }
   if(action==='publish'||action==='unpublish'){
    const type=button.dataset.type;const id=button.dataset.id;const expected=action==='publish'?'published':'unpublished';
    const original=button.textContent;button.disabled=true;button.textContent='处理中…';
