@@ -77,6 +77,7 @@ for i in $(seq 1 45); do
 done
 test "$READY" = 1
 docker cp "$SELFTEST" "$API":/app/tutorial-selftest.mjs
+docker exec --user root "$API" chmod 0644 /app/tutorial-selftest.mjs
 docker exec "$API" node /app/tutorial-selftest.mjs
 cleanup_lab
 echo 'PREFLIGHT_PASSED live service still unchanged'
@@ -107,6 +108,7 @@ done
 test "$READY" = 1
 CONTAINER=$(docker compose ps -q api)
 docker cp "$SELFTEST" "$CONTAINER":/app/tutorial-selftest.mjs
+docker exec --user root "$CONTAINER" chmod 0644 /app/tutorial-selftest.mjs
 docker compose exec -T -e PRODUCTION_CHECK_ONLY=1 api node /app/tutorial-selftest.mjs
 for file in index.html admin.js admin.css tutorial-publisher.js tutorial-publisher.css; do
   curl -fsS "http://127.0.0.1:8080/admin/$file" -o "$WORK/served-$file"
