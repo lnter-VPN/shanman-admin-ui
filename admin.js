@@ -153,7 +153,7 @@ function lines(value){return Array.isArray(value)?value.join('\n'):''}
 function tutorialStatusActions(item){return item.status==='published'?`<button class="table-action amber" data-action="tutorial-status" data-status="unpublished" data-id="${esc(item.id)}">下架</button>`:`<button class="table-action green" data-action="tutorial-status" data-status="published" data-id="${esc(item.id)}">发布</button>`}
 
 async function renderTutorials(){
- if(window.TutorialPublisher)return window.TutorialPublisher.mount({root:content,api,base:()=>state.apiBase,token:()=>state.token});
+  if(window.TutorialPublisher)return window.TutorialPublisher.mount({root:content,api,base:()=>state.apiBase,token:()=>state.token,requestAdvancedPassword:requestAdvancedCategoryPassword});
  const data=await api('/api/admin/tutorials');state.tutorials=data.items||[];
  const published=state.tutorials.filter(item=>item.status==='published').length;
  content.innerHTML=`<section class="panel tutorial-admin-hero"><div><span class="eyebrow">TUTORIAL PUBLISHER</span><h2>教程发布中心</h2><p>按客户端现有教程结构填写：准备内容、分步操作、注意事项和完成标准。发布后，客户端重新打开“教程”即会合并展示；离线时内置教程仍然可用。</p></div><div class="tutorial-admin-actions"><span><b>${published}</b> 篇已发布</span><button class="primary" type="button" data-action="create-tutorial">＋ 新建教程</button></div></section>
